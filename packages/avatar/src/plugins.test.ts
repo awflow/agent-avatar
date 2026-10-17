@@ -546,6 +546,140 @@ describe('shape plugins', () => {
   })
 })
 
+describe('validation', () => {
+  test('physics must be a sane spring, and only on slots that swing', () => {
+    const base = { slot: 'neckwear' as const, name: 'cape', draw: () => [] }
+    const ok = { stiffness: 7, damping: 0, maxSwing: 20 }
+    expect(() => defineAccessory({ ...base, physics: ok })).not.toThrow()
+    for (const bad of [
+      { ...ok, stiffness: 0 },
+      { ...ok, stiffness: Number.NaN },
+      { ...ok, damping: -0.1 },
+      { ...ok, damping: Number.POSITIVE_INFINITY },
+      { ...ok, maxSwing: 0 },
+      { ...ok, maxSwing: '20' },
+      { stiffness: 7, damping: 0.2 },
+    ])
+      expect(() => defineAccessory({ ...base, physics: bad as never })).toThrow(
+        'plugin "cape": physics needs',
+      )
+    for (const slot of ['eyewear', 'decor'] as const)
+      expect(() => defineAccessory({ ...base, slot, physics: ok })).toThrow(
+        `plugin "cape": ${slot} does not swing, so it takes no physics`,
+      )
+    // the same checks guard plain objects handed to registerPlugins
+    expect(() =>
+      registerPlugins([
+        { kind: 'accessory', ...base, physics: { ...ok, stiffness: -1 } },
+      ]),
+    ).toThrow('physics needs')
+  })
+
+  test('rekey: bad tags or attribute names, and duplicate keys, skip the plugin once', () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const node = (tag: string, key: string, attrs: Record<string, unknown>) =>
+        ({ tag, key, attrs, children: [] }) as unknown as Node
+      registerPlugins([
+        defineProp({
+          name: 'bad-tag',
+          draw: () => [node('script x', 'a', {})],
+        }),
+        defineProp({
+          name: 'bad-attr',
+          draw: () => [node('circle', 'a', { 'on load="x"': '1' })],
+        }),
+        defineProp({
+          name: 'twins',
+          draw: () => [node('circle', 'a', {}), node('rect', 'a', {})],
+        }),
+        defineProp({
+          name: 'loose',
+          draw: () => [node('circle', 'a', { r: 3, fill: undefined })],
+        }),
+      ])
+      for (const prop of ['bad-tag', 'bad-attr', 'twins']) {
+        for (let i = 0; i < 2; i++) {
+          const t = tree('Linh', { prop, size: 300 })
+          expect(keys(t).some((k) => k.startsWith(`plugin.${prop}.`))).toBe(
+            false,
+          )
+        }
+      }
+      expect(warn).toHaveBeenCalledTimes(3)
+      expect(String(warn.mock.calls[2]![0])).toContain('duplicate key')
+      // undefined attributes are dropped, numbers become strings
+      const svg = toSvg('Linh', { prop: 'loose', size: 300 })
+      expect(svg).toContain('<circle r="3"/>')
+      expect(warn).toHaveBeenCalledTimes(3)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  test('shape geometry: number leaves checked deeply, stored as a frozen copy', () => {
+    expect(() =>
+      defineShape({
+        name: 'odd',
+        geom: { ...FACES.cube, eyes: [[1, 'x'] as never, [2, 3]] },
+      }),
+    ).toThrow('shape "odd": eyes must hold numbers only')
+    expect(() =>
+      defineShape({
+        name: 'odd',
+        geom: { ...FACES.cube, brow: { ...FACES.cube.brow, w: '3' as never } },
+      }),
+    ).toThrow('shape "odd": brow.w must be a number')
+    const geom = structuredClone({ ...FACES.cube }) as {
+      -readonly [K in keyof typeof FACES.cube]: any
+    }
+    const sq = defineShape({ name: 'sq', geom: geom as never })
+    registerPlugins([sq])
+    const before = toSvg('Linh', { shape: 'sq', size: 300 })
+    geom.eyes[0][0] += 40
+    geom.hw = 10
+    expect(toSvg('Linh', { shape: 'sq', size: 300 })).toBe(before)
+    expect(Object.isFrozen(sq.geom)).toBe(true)
+    expect(Object.isFrozen(sq.geom.eyes[0])).toBe(true)
+    // a plain object handed straight to registerPlugins is copied too
+    const plain = structuredClone({ ...FACES.blob }) as any
+    registerPlugins([{ kind: 'shape', name: 'plain', geom: plain }])
+    const was = toSvg('Linh', { shape: 'plain', size: 300 })
+    plain.crown.poly[0][1] -= 50
+    expect(toSvg('Linh', { shape: 'plain', size: 300 })).toBe(was)
+  })
+
+  test('plugins() never lists the same theme twice', () => {
+    const p = defineTheme({ ...THEMES.clay, name: 'once' })
+    registerPlugins([p])
+    registerPlugins([p, { kind: 'theme', theme: p }])
+    registerPlugins([{ kind: 'theme', theme: p.theme }])
+    expect(
+      plugins().filter((q) => q.kind === 'theme' && q.theme.name === 'once'),
+    ).toHaveLength(1)
+  })
+
+  test('theme function slots must be functions', () => {
+    for (const slot of ['ink', 'sclera', 'pupil', 'motifInk', 'solid'])
+      expect(() =>
+        registerPlugins([
+          {
+            kind: 'theme',
+            theme: { ...THEMES.clay, name: 'fx-less', [slot]: '#000000' },
+          },
+        ]),
+      ).toThrow(`theme "fx-less": ${slot} must be a function`)
+    expect(() =>
+      defineTheme({
+        ...THEMES.mono,
+        name: 'fx-less',
+        outline: { color: '#000' as never, width: 2, glow: false },
+      }),
+    ).toThrow('theme "fx-less": outline.color must be a function')
+    expect(plugins()).toEqual([])
+  })
+})
+
 describe('hashing', () => {
   test('identity and default output are unaffected by registration', () => {
     const names = Array.from({ length: 500 }, (_, i) => `agent-${i}`)

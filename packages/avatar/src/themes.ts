@@ -204,6 +204,15 @@ function normalise(t: Theme): Theme {
   if (!t || typeof t.name !== 'string' || t.name === '')
     throw new Error('a theme needs a name')
   const at = `theme "${t.name}":`
+  // the inks are called per avatar: a colour string here would throw mid-draw
+  const fns = ['ink', 'sclera', 'pupil', 'motifInk'] as const
+  for (const k of fns)
+    if (typeof t[k] !== 'function')
+      throw new Error(`${at} ${k} must be a function`)
+  if (t.solid !== undefined && typeof t.solid !== 'function')
+    throw new Error(`${at} solid must be a function`)
+  if (t.outline && typeof t.outline.color !== 'function')
+    throw new Error(`${at} outline.color must be a function`)
   if (!t.colors || typeof t.colors !== 'object')
     throw new Error(`${at} colors is missing`)
   const colors = slots((_, k) => {

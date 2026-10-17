@@ -55,6 +55,8 @@ export type Plugin =
   | ThemePlugin
 
 const SLOTS: readonly WearSlot[] = ['headwear', 'eyewear', 'neckwear', 'decor']
+// the slots whose items swing on a spring of their own
+const SPRUNG: readonly WearSlot[] = ['headwear', 'neckwear']
 const NAME = /^[a-z][a-z0-9-]*$/
 
 function checkName(name: unknown): asserts name is string {
@@ -78,6 +80,27 @@ export function defineAccessory(
       `plugin "${p.name}": slot must be one of ${SLOTS.join(', ')}`,
     )
   fn(p.name, 'draw', p.draw)
+  if (p.physics !== undefined) {
+    if (!SPRUNG.includes(p.slot))
+      throw new Error(
+        `plugin "${p.name}": ${p.slot} does not swing, so it takes no physics`,
+      )
+    const s = p.physics as Partial<Record<keyof SwingSpec, unknown>> | null
+    const num = (v: unknown): v is number =>
+      typeof v === 'number' && Number.isFinite(v)
+    if (
+      !s ||
+      !num(s.stiffness) ||
+      !num(s.damping) ||
+      !num(s.maxSwing) ||
+      s.stiffness <= 0 ||
+      s.damping < 0 ||
+      s.maxSwing <= 0
+    )
+      throw new Error(
+        `plugin "${p.name}": physics needs finite numbers: stiffness > 0, damping >= 0 and maxSwing > 0`,
+      )
+  }
   return { kind: 'accessory', ...p }
 }
 
@@ -93,24 +116,64 @@ export function defineFx(p: Omit<FxPlugin, 'kind'>): FxPlugin {
   return { kind: 'fx', ...p }
 }
 
-const numbers = (v: unknown, out: number[] = []): number[] => {
+// every number in a geometry; an array may hold numbers (or arrays) only
+function numbers(at: string, v: unknown, path: string, out: number[]) {
   if (typeof v === 'number') out.push(v)
-  else if (Array.isArray(v)) for (const x of v) numbers(x, out)
+  else if (Array.isArray(v))
+    for (const x of v) {
+      if (typeof x !== 'number' && !Array.isArray(x))
+        throw new Error(`${at} ${path} must hold numbers only`)
+      numbers(at, x, path, out)
+    }
   else if (v && typeof v === 'object')
-    for (const x of Object.values(v)) numbers(x, out)
+    for (const [k, x] of Object.entries(v))
+      numbers(at, x, path ? `${path}.${k}` : k, out)
   return out
 }
+
+function deepFreeze<T>(v: T): T {
+  if (v && typeof v === 'object') {
+    for (const x of Object.values(v)) deepFreeze(x)
+    Object.freeze(v)
+  }
+  return v
+}
+
+const SHAPE_NUMBERS = [
+  'bottom',
+  'sink',
+  'rx',
+  'ry',
+  'pr',
+  'crx',
+  'cry',
+  'hw',
+  'side',
+  'neck',
+  'brow.y',
+  'brow.hw',
+  'brow.arch',
+  'brow.w',
+  'mouth.x',
+  'mouth.y',
+  'mouth.w',
+  'mouth.d',
+  'mouth.sw',
+  'crown.r',
+] as const
 
 /**
  * A body shape. Its outline must be a single subpath: the half-width probe
  * the wardrobe sits on reads one closed outline, so holes and islands are
- * refused here rather than misplacing a scarf later.
+ * refused here rather than misplacing a scarf later. The geometry is stored
+ * as a frozen copy: changing the object afterwards changes nothing drawn.
  */
 export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
   checkName(p.name)
   const at = `shape "${p.name}":`
-  const g = p.geom
-  if (!g || typeof g !== 'object') throw new Error(`${at} geom is missing`)
+  if (!p.geom || typeof p.geom !== 'object')
+    throw new Error(`${at} geom is missing`)
+  const g = structuredClone(p.geom) as FaceGeom
   const b = g.body as { d?: unknown; circle?: unknown } | undefined
   if (!b || (typeof b.d !== 'string' && !Array.isArray(b.circle)))
     throw new Error(`${at} body needs a path d or a circle`)
@@ -119,11 +182,10 @@ export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
     if (!/^\s*[Mm]/.test(b.d) || moves !== 1)
       throw new Error(`${at} body.d must be one subpath (a single M)`)
   }
+  const pair = (v: unknown) => Array.isArray(v) && v.length === 2
   if (
-    !Array.isArray(g.eyes) ||
-    g.eyes.length !== 2 ||
-    !Array.isArray(g.cheeks) ||
-    g.cheeks.length !== 2 ||
+    !pair(g.eyes) ||
+    !pair(g.cheeks) ||
     !g.brow ||
     !g.mouth ||
     !g.crown ||
@@ -133,24 +195,24 @@ export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
     throw new Error(
       `${at} needs eyes and cheeks (two points each), brow, mouth and a crown polygon`,
     )
-  const keys = [
-    'bottom',
-    'sink',
-    'rx',
-    'ry',
-    'pr',
-    'crx',
-    'cry',
-    'hw',
-    'side',
-    'neck',
-  ] as const
-  for (const k of keys)
-    if (typeof g[k] !== 'number') throw new Error(`${at} ${k} must be a number`)
+  for (const pts of ['eyes', 'cheeks'] as const)
+    if (!g[pts].every((pt) => pair(pt)))
+      throw new Error(`${at} ${pts} must be two [x, y] points`)
+  if (!g.crown.poly.every((pt) => pair(pt)))
+    throw new Error(`${at} crown.poly must be [x, y] points`)
+  if (Array.isArray(b.circle) && b.circle.length !== 3)
+    throw new Error(`${at} body.circle must be [cx, cy, r]`)
+  for (const k of SHAPE_NUMBERS) {
+    const v = k
+      .split('.')
+      .reduce<unknown>((o, f) => (o as Record<string, unknown>)?.[f], g)
+    if (typeof v !== 'number') throw new Error(`${at} ${k} must be a number`)
+  }
+  const all = numbers(at, g, '', [])
   const s = seat(g.crown, 0, 0)
-  if (!numbers([g, s.x, s.y, s.a]).every(Number.isFinite))
+  if (![...all, s.x, s.y, s.a].every(Number.isFinite))
     throw new Error(`${at} every number must be finite`)
-  return { kind: 'shape', ...p }
+  return { kind: 'shape', ...p, geom: deepFreeze(g) }
 }
 
 /* the registry: one namespace for every kind but themes, which keep theirs */
@@ -200,6 +262,8 @@ export function registerPlugins(items: Plugin[]): void {
   const next = [...reg.list]
   const replaced: string[] = []
   const themes: ThemePlugin[] = []
+  // each shape's checked, frozen copy, kept beside the plugin as passed
+  const geoms: [ShapePlugin, FaceGeom][] = []
   const themeAt = (name: string) =>
     next.findIndex((q) => q.kind === 'theme' && q.theme.name === name)
   for (const p of items) {
@@ -235,6 +299,7 @@ export function registerPlugins(items: Plugin[]): void {
     if (had && !sameKind(had, p))
       throw new Error(`"${p.name}" is taken by another plugin`)
     staged.set(p.name, p)
+    if (checked.kind === 'shape') geoms.push([p as ShapePlugin, checked.geom])
     if (had) {
       next[next.indexOf(had)] = p
       replaced.push(p.name)
@@ -242,6 +307,7 @@ export function registerPlugins(items: Plugin[]): void {
   }
   // nothing above registered anything: a list that throws leaves no trace
   for (const p of themes) registerTheme(p.theme)
+  for (const [p, g] of geoms) reg.geoms.set(p, g)
   reg.names.clear()
   for (const [k, v] of staged) reg.names.set(k, v)
   reg.list = next
@@ -296,9 +362,9 @@ export function shapeOf(name: unknown): ShapePlugin | undefined {
 
 /** A body's geometry: a built-in face, else a registered shape. */
 export function geomOf(face: string): FaceGeom {
-  return Object.hasOwn(FACES, face)
-    ? FACES[face as keyof typeof FACES]
-    : (shapeOf(face)?.geom as FaceGeom)
+  if (Object.hasOwn(FACES, face)) return FACES[face as keyof typeof FACES]
+  const p = shapeOf(face)
+  return (p && (registry().geoms.get(p) ?? p.geom)) as FaceGeom
 }
 
 function skip(p: Plugin, why: unknown) {
@@ -311,18 +377,35 @@ function skip(p: Plugin, why: unknown) {
 }
 
 const BAD = /NaN|Infinity/
+const TAG = /^[a-zA-Z][a-zA-Z0-9]*$/
+const ATTR = /^[a-zA-Z_:][-a-zA-Z0-9_:.]*$/
 
-function rekey(node: Node, prefix: string): Node {
+// a plugin node made safe to serialise: checked tag and attribute names,
+// undefined attributes dropped, every key under the plugin's prefix and
+// unique within the plugin (a live tree finds nodes by key)
+function rekey(node: Node, prefix: string, seen: Set<string>): Node {
   if (!node || typeof node.tag !== 'string' || typeof node.key !== 'string')
     throw new Error('draw returned something that is not a node')
-  for (const k in node.attrs)
-    if (BAD.test(node.attrs[k]!))
-      throw new Error(`non-finite ${k} on ${node.key}`)
+  if (!TAG.test(node.tag))
+    throw new Error(`bad tag ${JSON.stringify(node.tag)} on ${node.key}`)
+  const key = node.key.startsWith(prefix) ? node.key : prefix + node.key
+  if (seen.has(key)) throw new Error(`duplicate key ${key}`)
+  seen.add(key)
+  const attrs: Record<string, string> = {}
+  for (const k in node.attrs) {
+    const v: unknown = node.attrs[k]
+    if (v === undefined) continue
+    if (!ATTR.test(k))
+      throw new Error(`bad attribute name ${JSON.stringify(k)} on ${key}`)
+    const text = String(v)
+    if (BAD.test(text)) throw new Error(`non-finite ${k} on ${key}`)
+    attrs[k] = text
+  }
   return {
     tag: node.tag,
-    key: node.key.startsWith(prefix) ? node.key : prefix + node.key,
-    attrs: { ...node.attrs },
-    children: (node.children ?? []).map((c) => rekey(c, prefix)),
+    key,
+    attrs,
+    children: (node.children ?? []).map((c) => rekey(c, prefix, seen)),
   }
 }
 
@@ -338,11 +421,12 @@ export function drawPlugin(
   try {
     const out = p.draw(ctx)
     if (!Array.isArray(out)) throw new Error('draw must return an array')
+    const seen = new Set<string>()
     return el(
       'g',
       key,
       {},
-      out.map((c) => rekey(c, `${key}.`)),
+      out.map((c) => rekey(c, `${key}.`, seen)),
     )
   } catch (e) {
     skip(p, e)

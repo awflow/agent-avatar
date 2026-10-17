@@ -7,6 +7,7 @@
  */
 
 import type { Plugin } from './plugins'
+import type { FaceGeom } from './tables'
 import type { Theme } from './themes'
 
 export type Registry = {
@@ -24,6 +25,8 @@ export type Registry = {
   sources: Map<string, Theme>
   /** One-time development warnings already printed. */
   notes: Set<string>
+  /** Each registered shape plugin's checked, frozen geometry. */
+  geoms: WeakMap<object, FaceGeom>
 }
 
 const KEY = Symbol.for('awflow.avatar.registry')
@@ -38,6 +41,7 @@ export function registry(): Registry {
     themes: new Map(),
     sources: new Map(),
     notes: new Set(),
+    geoms: new WeakMap(),
   }
   return g[KEY]
 }
