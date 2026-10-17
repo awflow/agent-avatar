@@ -130,6 +130,18 @@ function syncRoot(svg: Element, attrs: Record<string, string>) {
 
 const ringKey = (o: MountOptions) => JSON.stringify(o.ring ?? null)
 
+/* the keys that are state: a patch of only these never changes identity */
+const STATE = new Set<string>([
+  'expression',
+  'activity',
+  'gaze',
+  'ring',
+  'reaction',
+  'reactKey',
+])
+const stateOnly = (patch: object) =>
+  Object.keys(patch).every((k) => STATE.has(k))
+
 class Mounted implements AvatarHandle {
   private o: MountOptions
   private key: string
@@ -176,7 +188,7 @@ class Mounted implements AvatarHandle {
     const prev = this.o
     const next = { ...prev, ...patch }
     this.o = next
-    const key = identityKey(next)
+    const key = stateOnly(patch) ? this.key : identityKey(next)
     if (key !== this.key) {
       this.key = key
       this.rebuild()

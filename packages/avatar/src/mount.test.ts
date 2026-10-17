@@ -309,3 +309,35 @@ describe('isIdentityChange', () => {
     expect(isIdentityChange(base, { ...base, version: 2 })).toBe(false)
   })
 })
+
+describe('set() with only state', () => {
+  test('skips the identity work: no settle for a state-only patch', async () => {
+    const svgModule = await import('./svg')
+    const target = document.createElement('div')
+    const live = mount(target, { name: 'Ada', animate: true })
+    const still = mount(document.createElement('div'), { name: 'Ada' })
+    const spy = spyOn(svgModule, 'settle')
+    try {
+      live.set({
+        expression: 'happy',
+        activity: 'thinking',
+        gaze: [1, 0],
+        ring: { color: '#f00' },
+        reaction: 'nod',
+        reactKey: 1,
+      })
+      expect(spy).toHaveBeenCalledTimes(0)
+      // static: one settle to redraw, none for the identity check
+      still.set({ expression: 'sad' })
+      expect(spy).toHaveBeenCalledTimes(1)
+      // an identity key still rebuilds
+      const svg = live.element
+      live.set({ expression: 'sad', size: 96 })
+      expect(live.element).not.toBe(svg)
+    } finally {
+      spy.mockRestore()
+      live.destroy()
+      still.destroy()
+    }
+  })
+})
