@@ -6,6 +6,7 @@ for (const entry of [
   'src/svg.ts',
   'src/identity.ts',
   'src/adapter.ts',
+  'src/compat.ts',
 ]) {
   const result = await Bun.build({
     entrypoints: [entry],

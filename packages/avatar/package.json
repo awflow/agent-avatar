@@ -20,6 +20,12 @@
       "import": "./dist/svg.js",
       "default": "./dist/svg.js"
     },
+    "./compat": {
+      "development": "./src/compat.ts",
+      "types": "./dist/compat.d.ts",
+      "import": "./dist/compat.js",
+      "default": "./dist/compat.js"
+    },
     "./identity": {
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js",
