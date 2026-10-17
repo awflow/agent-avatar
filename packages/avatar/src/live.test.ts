@@ -412,6 +412,32 @@ describe('Live lip-sync', () => {
     live.destroy()
   })
 
+  test('with no source a pulse holds the mouth shut for 1 s, then the flap resumes', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' })
+    frames(live, 30)
+    expect(rig.voice).toBe(-1)
+    live.pulse()
+    frames(live, 30)
+    // decayed, still held: the level reads 0, not the flap
+    expect(rig.voice).toBe(0)
+    frames(live, 27)
+    expect(rig.voice).toBe(0)
+    frames(live, 6)
+    expect(rig.voice).toBe(-1)
+    live.destroy()
+  })
+
+  test('under reduced motion a pulse does nothing', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' }, true)
+    live.pulse()
+    expect(rig.pulseAt).toBe(-1)
+    // nothing is left to hold the mouth once motion comes back
+    live.setReduced(false)
+    live.step(1 / 60)
+    expect(rig.voice).toBe(-1)
+    live.destroy()
+  })
+
   test('null removes the source and the node count never changes', () => {
     const { live, count } = mount('Linh', { activity: 'speaking' })
     const n = count()
@@ -492,14 +518,21 @@ describe('Live.lookAt', () => {
   test('a locking activity ignores lookAt; null goes back', () => {
     const a = mount('Linh', { activity: 'thinking' })
     const b = mount('Ada')
+    // the control: the same activity, no target
+    const ctl = mount('Linh', { activity: 'thinking' })
     place(a.svg, 0)
     place(b.svg, 400)
-    const before = a.rig.base.gx
+    place(ctl.svg, 0)
     a.live.lookAt(b.live)
     settleGaze(a.rig)
+    settleGaze(ctl.rig)
     expect(a.rig.aim).not.toBeNull()
-    const locked = gx(a.rig) + a.rig.out.gx
-    expect(Math.abs(locked - before)).toBeLessThan(0.9)
+    for (const c of ['gx', 'gy'])
+      expect(a.rig.val[c] + a.rig.out[c]).toBeCloseTo(
+        ctl.rig.val[c] + ctl.rig.out[c],
+        6,
+      )
+    ctl.live.destroy()
     const c = mount('Linh')
     place(c.svg, 0)
     c.live.lookAt(b.live)
