@@ -7,6 +7,7 @@ for (const entry of [
   'src/identity.ts',
   'src/adapter.ts',
   'src/compat.ts',
+  'src/ai.ts',
 ]) {
   const result = await Bun.build({
     entrypoints: [entry],

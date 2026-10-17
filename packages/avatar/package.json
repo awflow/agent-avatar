@@ -26,6 +26,12 @@
       "import": "./dist/compat.js",
       "default": "./dist/compat.js"
     },
+    "./ai": {
+      "development": "./src/ai.ts",
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js",
+      "default": "./dist/ai.js"
+    },
     "./identity": {
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js",

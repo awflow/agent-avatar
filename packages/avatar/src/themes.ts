@@ -261,3 +261,8 @@ export function resetThemesForTests() {
 export function themeOf(name?: string): Theme {
   return (name !== undefined && registry.get(name)) || soft
 }
+
+/** Every theme name, built-ins first, then custom ones in registration order. */
+export function themeNames(): string[] {
+  return [...registry.keys()]
+}
