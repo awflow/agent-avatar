@@ -533,5 +533,9 @@ describe('adapter subpath', () => {
   test('the main entry stays frozen', () => {
     expect('Live' in entry).toBe(false)
     expect('restPose' in entry).toBe(false)
+    // deliberately added in Plan 3: what a plugin author draws with
+    for (const name of ['el', 'crownTop', 'swingOf'])
+      expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')
+    expect(Object.keys(entry).sort()).toMatchSnapshot()
   })
 })

@@ -55,12 +55,7 @@ test('a plugin registered through index reaches adapter and ai', async () => {
     slot: 'headwear',
     name: 'smoke-hat',
     draw: () => [
-      {
-        tag: 'circle',
-        key: 'dot',
-        attrs: { cx: '170', cy: '30', r: '7', fill: '#123456' },
-        children: [],
-      },
+      index.el('circle', 'dot', { cx: 170, cy: 30, r: 7, fill: '#123456' }),
     ],
   })
   const theme = { ...index.THEMES.clay, name: 'smoke-theme' }

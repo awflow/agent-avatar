@@ -1177,7 +1177,6 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     theme: T,
     ink: slot,
     g,
-    bodyTransform,
     stroke: st,
     id,
     size: o.size,

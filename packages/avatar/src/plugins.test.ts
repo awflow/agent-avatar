@@ -3,6 +3,13 @@ import { ACTIVITIES, type Activity } from './activity'
 import { draw, type Node, ringWalk, seat } from './draw'
 import { FX_POOL } from './fx'
 import { identify, LISTS } from './identity'
+import {
+  crownTop,
+  el as entryEl,
+  type Face,
+  swingOf,
+  type WearCtx,
+} from './index'
 import { el } from './node'
 import {
   defineAccessory,
@@ -38,12 +45,10 @@ const catEars = defineAccessory({
       el('path', 'left', {
         d: `M120 ${top + 10}L135 ${top - 30}L150 ${top + 4}Z`,
         fill: c.ink.body,
-        transform: c.bodyTransform,
       }),
       el('path', 'right', {
         d: `M190 ${top + 4}L205 ${top - 30}L220 ${top + 10}Z`,
         fill: c.ink.body,
-        transform: c.bodyTransform,
       }),
     ]
   },
@@ -177,6 +182,31 @@ describe('registerPlugins', () => {
       registerPlugins([kite, defineAccessory({ ...catEars, name: 'cap' })]),
     ).toThrow()
     expect(plugins()).toEqual([])
+  })
+
+  test('the plugin-author surface: el, crownTop and swingOf from the main entry', () => {
+    const hat = defineAccessory({
+      slot: 'headwear',
+      name: 'tip',
+      physics: { stiffness: 9, damping: 0.3, maxSwing: 12 },
+      draw: (c: WearCtx) => {
+        const top = crownTop(c.sh)
+        const a = swingOf(c.pose, 'headwear')
+        expect('bodyTransform' in c).toBe(false)
+        return [
+          entryEl('circle', 'dot', {
+            cx: top.x,
+            cy: top.y - 10,
+            r: 6,
+            transform: `rotate(${a} ${top.x} ${top.y})`,
+          }),
+        ]
+      },
+    })
+    registerPlugins([hat])
+    const svg = toSvg('Linh', { headwear: 'tip', size: 300 })
+    const top = crownTop(FACES[settle('Linh', {}).who.face as Face])
+    expect(svg).toContain(`cy="${top.y - 10}"`)
   })
 
   test('bad names are refused', () => {

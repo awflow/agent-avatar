@@ -1,7 +1,8 @@
 /*
- * What every wearable draws from: the face's anchors, the pose, the theme
- * and the body's own transform. Built once per frame inside draw(), so a
- * built-in item and a plugin see the same thing.
+ * What every wearable draws from: the face's anchors, the pose and the
+ * theme. Built once per frame inside draw(), so a built-in item and a plugin
+ * see the same thing. Wearables are drawn inside the body group, so they
+ * use body coordinates and already follow the body's transform.
  *
  * The registry maps each slot to its drawn items. Peek's own six items stay
  * in draw.ts with their exact drawings; everything past them lives here,
@@ -34,8 +35,6 @@ export type WearCtx = {
   ink: Ink
   /** A persona-adjusted channel (Peek's g()). */
   g: (c: Channel) => number
-  /** The transform Peek applies to the body group. */
-  bodyTransform: string
   /** Peek's strokeFor(size). */
   stroke: number
   id: string

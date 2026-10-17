@@ -17,6 +17,9 @@ export type { FxAnchor, FxKind, FxShape } from './fx'
 export { FX_KINDS, fxShapes } from './fx'
 export type { Axes, Identity, Persona } from './identity'
 export { AXES, identify, LISTS, tidy } from './identity'
+/** For plugin authors: build a drawing-tree node. */
+export { el } from './node'
+export type { SwingSpec } from './physics'
 export type {
   AccessoryPlugin,
   FxPlugin,
@@ -49,6 +52,7 @@ export type {
   Eyes,
   Eyewear,
   Face,
+  FaceGeom,
   Headwear,
   Motif,
   Mouth,
@@ -69,4 +73,11 @@ export {
 } from './tables'
 export type { Ink, Theme } from './themes'
 export { deepOf, defineTheme, parseHex, THEMES, themeOf } from './themes'
-export type { WearCtx, WearDraw } from './wardrobe/context'
+export type {
+  SwingSlot,
+  WearCtx,
+  WearDraw,
+  WearSlot,
+} from './wardrobe/context'
+/** For plugin authors: where a hat sits, and a slot's swing this frame. */
+export { crownTop, swingOf } from './wardrobe/kit'
