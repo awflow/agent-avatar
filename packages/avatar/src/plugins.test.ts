@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
 import { ACTIVITIES, type Activity } from './activity'
+import { Live } from './animate'
+import { Avatar } from './avatar'
 import { draw, type Node, ringWalk, seat } from './draw'
 import { FX_POOL } from './fx'
 import { identify, LISTS } from './identity'
@@ -21,7 +25,7 @@ import {
   registerPlugins,
   resetPluginsForTests,
 } from './plugins'
-import { settle, toSvg } from './svg'
+import { serialize, settle, toSvg } from './svg'
 import { EXPRESSIONS, type Expression, FACES, PARTS } from './tables'
 import { fakeDom, mount } from './test/dom'
 import { defineTheme, THEMES, themeOf } from './themes'
@@ -677,6 +681,130 @@ describe('validation', () => {
       }),
     ).toThrow('theme "fx-less": outline.color must be a function')
     expect(plugins()).toEqual([])
+  })
+})
+
+describe('plugins on a page', () => {
+  test('live: a hidden (failed) group reappears on the next good frame', () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      let fail = false
+      registerPlugins([
+        defineAccessory({
+          slot: 'headwear',
+          name: 'blinky',
+          draw: () => {
+            if (fail) throw new Error('blink')
+            return [el('circle', 'dot', { cx: 170, cy: 20, r: 9 })]
+          },
+        }),
+      ])
+      const { live, svg, count } = mount('Linh', {
+        headwear: 'blinky',
+        size: 300,
+      })
+      const n = count()
+      const group = () => svg.querySelector('circle[r="9"]')!.parentElement!
+      live.react('hop')
+      live.step(1 / 60)
+      expect(group().getAttribute('opacity')).not.toBe('0')
+      fail = true
+      live.step(1 / 60)
+      expect(group().getAttribute('opacity')).toBe('0')
+      fail = false
+      live.step(1 / 60)
+      expect(group().getAttribute('opacity')).not.toBe('0')
+      expect(svg.querySelector('circle[r="9"]')).not.toBeNull()
+      expect(count()).toBe(n)
+      live.destroy()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  test('two avatars differing only by a plugin item get different ids', () => {
+    const dot = (name: string) =>
+      defineAccessory({
+        slot: 'headwear',
+        name,
+        draw: () => [el('circle', 'dot', { cx: 170, cy: 20, r: 9 })],
+      })
+    registerPlugins([
+      dot('hat-a'),
+      dot('hat-b'),
+      defineProp({ name: 'kite-a', draw: () => [] }),
+      defineProp({ name: 'kite-b', draw: () => [] }),
+    ])
+    const id = (o: Parameters<typeof settle>[1]) => settle('Linh', o).opts.id
+    expect(id({ headwear: 'hat-a' })).not.toBe(id({ headwear: 'hat-b' }))
+    expect(id({ prop: 'kite-a' })).not.toBe(id({ prop: 'kite-b' }))
+    expect(id({ headwear: 'hat-a' })).not.toBe(id({}))
+  })
+
+  test('SSR parity: a registered hat and prop render the same twice, and the first live paint matches', () => {
+    registerPlugins([
+      defineAccessory({
+        slot: 'headwear',
+        name: 'bobber',
+        physics: { stiffness: 8, damping: 0.25, maxSwing: 14 },
+        draw: (c) => {
+          const top = crownTop(c.sh)
+          return [
+            el('circle', 'ball', {
+              cx: top.x,
+              cy: top.y - 12 + Math.sin(c.t * 3) * 3,
+              r: 8,
+              transform: `rotate(${swingOf(c.pose, 'headwear')} ${top.x} ${top.y})`,
+              fill: c.ink.deep,
+            }),
+          ]
+        },
+      }),
+      defineProp({
+        name: 'flag',
+        draw: (c) => [
+          el('rect', 'cloth', {
+            x: c.propAt!.x,
+            y: c.propAt!.y + Math.sin(c.t) * 2,
+            width: 20 * c.propAt!.k,
+            height: 12 * c.propAt!.k,
+          }),
+        ],
+      }),
+    ])
+    const o = { headwear: 'bobber', prop: 'flag', size: 300 }
+    for (const name of ['Linh', 'Ada Lovelace']) {
+      const server = toSvg(name, o)
+      expect(server).toContain('r="8"')
+      expect(settle(name, o).who.prop as string).toBe('flag')
+      expect(toSvg(name, o)).toBe(server)
+      const react = renderToString(
+        createElement(Avatar, { name, ...o, animate: true }),
+      )
+      expect(
+        renderToString(createElement(Avatar, { name, ...o, animate: true })),
+      ).toBe(react)
+      expect(react).toContain('r="8"')
+      // the client's first live paint writes nothing over the server frame
+      const proto = (globalThis as any).Element.prototype
+      const set = proto.setAttribute
+      const writes: string[] = []
+      const { who, pose, opts } = settle(name, o, true)
+      const tree = draw(who, pose, opts)
+      const host = document.createElement('div')
+      host.innerHTML = serialize(tree)
+      const svg = host.querySelector('svg') as unknown as SVGSVGElement
+      proto.setAttribute = function (k: string, v: string) {
+        writes.push(`${k}=${v}`)
+        return set.call(this, k, v)
+      }
+      try {
+        new Live(svg, tree, who, opts, 'normal').destroy()
+      } finally {
+        proto.setAttribute = set
+      }
+      expect(writes).toEqual([])
+    }
   })
 })
 
