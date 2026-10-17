@@ -30,6 +30,8 @@
 
 ### Task 1: Pure `Rig` extracted from `Live`
 
+> Executed as Plan 4 Task 0 (controller ruling). When running Plan 6, skip this task; its text stays here as the reference Plan 4 executes.
+
 **Files:**
 - Create: `packages/avatar/src/rig.ts`
 - Modify: `src/animate.ts` (Live composes Rig), `src/index.ts`, `src/adapter.ts`
@@ -123,6 +125,7 @@
 - Create: `CHANGELOG.md`, `.github/workflows/ci.yml` (install, test, build, check-types, lint)
 - Test: `npm pack --dry-run` per package
 
+- [ ] **Step 0:** Freeze released output (spec §9): add `src/golden-v2.test.ts` with fnv1a sums of `toSvg` over a corpus (40 names × 5 themes × peek/full × 4 activities × dress on/off) and an inline snapshot of every `FACES` anchor table entry; replace the `homepage`/`repository` placeholders with the real URLs.
 - [ ] **Step 1:** Run `npm pack --dry-run` in each package and assert the file lists (Review Focus 5); fix `files` fields until they match.
 - [ ] **Step 2:** Run the full gate: `bun run lint && bun run check-types && bun run test && bun run build`. Expected: exit 0.
 - [ ] **Step 3:** Confirm with the owner that the npm org `awflow` exists (`npm org ls awflow`) and that they approve publishing; then publish in dependency order: `@awflow/avatar`, `-export`, `-svelte`, `-react`, `-vue`, `-solid`, `-element` (`npm publish` from each package dir).

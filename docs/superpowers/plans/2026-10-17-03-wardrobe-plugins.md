@@ -49,10 +49,11 @@
   export type WearDraw = (ctx: WearCtx) => Node[]
   export const HEADWEAR: Record<'beanie'|'headphones'|'antenna'|'crown'|'wizard'|'party'|'halo'|'beret'|'chef', { draw: WearDraw; physics?: SwingSpec }>
   ```
-- Physics: `antenna {stiffness 9, damping 0.15, maxSwing 26}`, `party {10, 0.2, 18}` (pompom), `wizard {8, 0.2, 14}` (tip), `beanie {10, 0.22, 16}` (pompom); others none. Physics items rotate their swinging part by `pose.wob` (Plan 2) about its attachment point.
+- Per-wearable springs (spec §7.6): `Pose` gains `swing?: Partial<Record<'headwear'|'neckwear'|'trait', number>>` (absent by default, stripped from the id hash); `Live` steps one `Swing` per physics spec declared by the avatar's wardrobe (found at construction from `who`), excited by the same body acceleration; Peek's sprout and the trait keep reading `pose.wob` (the default body swing). `WearDraw` reads its slot's angle from `pose.swing?.[slot] ?? pose.wob`.
+- Physics: `antenna {stiffness 9, damping 0.15, maxSwing 26}`, `party {10, 0.2, 18}` (pompom), `wizard {8, 0.2, 14}` (tip), `beanie {10, 0.22, 16}` (pompom); others none. Physics items rotate their swinging part by their slot's swing angle about its attachment point.
 - Behaviour: `headphones` band spans `±(sh.side + 3)` at the eye line, cups glow cyan `#5CF2E8` while `activity === 'listening'` (opacity `0.6 + 0.4·sin(6t)`), orange `#F08A24` otherwise; `antenna` ball blinks cyan at `sin(10t) > 0` while `working`; `halo` bobs `1.2·sin(2t)` above the crown; colours per the mock (beanie `#E5677A`, crown `#F2C14E`/`#B8860B`, wizard `#5B4BB7`, party `#F28C6B` + `#F5C451` stripes, beret `#C9573A`, chef paper + ink).
 
-- [ ] **Step 1: Write the failing tests:** each new headwear × 15 shapes × 3 expressions (normal, happy, sleepy) is clean; crown contact (Review Focus 1); live tree stable across 20 random poses incl. `wob ∈ [−28, 28]`; Peek items unchanged (snapshot of `toSvg('Doan Labs', {headwear: 'sprout', version: 1})` equals the pre-change value recorded in Step 1).
+- [ ] **Step 1: Write the failing tests:** two physics items on one avatar (antenna + scarf) get independent swing angles after a hop (different stiffness → different angles at the same t); each new headwear × 15 shapes × 3 expressions (normal, happy, sleepy) is clean; crown contact (Review Focus 1); live tree stable across 20 random poses incl. `wob ∈ [−28, 28]`; Peek items unchanged (snapshot of `toSvg('Doan Labs', {headwear: 'sprout', version: 1})` equals the pre-change value recorded in Step 1).
 - [ ] **Step 2:** Run `bun test src/wardrobe/headwear.test.ts`. Expected: FAIL.
 - [ ] **Step 3:** Implement `node.ts` move (pure refactor, golden v1 must stay green), `context.ts` (build `WearCtx` inside `draw()`), `headwear.ts`.
 - [ ] **Step 4:** Run `bun test`. Expected: PASS.
@@ -120,8 +121,9 @@
 **Interfaces:**
 - Produces:
   ```ts
-  export type AccessoryPlugin = { kind: 'accessory'; slot: 'headwear'|'eyewear'|'neckwear'|'decor'; name: string; physics?: SwingSpec; draw: WearDraw }
+  export type AccessoryPlugin = { kind: 'accessory'; slot: 'headwear'|'eyewear'|'neckwear'|'decor'; name: string; physics?: SwingSpec; draw: WearDraw }   // a plugin with `physics` gets its own spring like built-ins
   export type PropPlugin = { kind: 'prop'; name: string; draw: WearDraw }
+  // Pose.fx / the fx option widen from the closed FxKind union to `string`, resolved through built-ins then the registry in draw()
   export type FxPlugin = { kind: 'fx'; name: string; shapes: (t: number, p: number, anchor: Parameters<typeof fxShapes>[3]) => FxShape[] }
   export type ShapePlugin = { kind: 'shape'; name: string; geom: FaceGeom }
   export type ThemePlugin = { kind: 'theme'; theme: Theme }

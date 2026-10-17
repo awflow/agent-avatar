@@ -24,7 +24,7 @@
 
 1. **Agents saved with partial/old avatar data** — `{color}` only, unknown `shape`, `icon: 'sunburst'`; expected: still renders (hash fills gaps; sunburst = Aria). Test in Task 2.
 2. **Motion preference "off"/"calm" and reduced motion** — expected: off = static, calm = animated without reactions/FX, lively = full; reduced motion always static. Test in Task 1.
-3. **Dense lists** (agents page, chat list, team clusters at 16–28 px) — expected: LOD keeps them legible and cheap (no FX, single shared loop). Test in Task 1 (size 16 renders no `fx.*`).
+3. **Dense lists** (agents page, chat list, team clusters at 16–28 px) — expected: LOD keeps them legible and cheap (3-node FX pool, only the waiting badge, single shared loop). Test in Task 1.
 4. **Shared/marketplace agents from older app versions** carrying the v2 `look` field with values this build does not know — expected: unknown values dropped by `parseLook`, never a crash. Test in Task 2.
 5. **Streaming flicker** — mood changing idle↔speaking every chunk; expected: smooth (springs) and no re-render of the `<svg>` (state change only). Test in Task 3.
 
@@ -43,10 +43,11 @@
   export function moodToActivity(mood: AgentMood): Activity            // idle→idle, thinking→thinking, working→working, waiting→waiting, done→done, cant→error, sleeping→sleeping, speaking→speaking, still→idle
   export function motionToProps(m: AgentMotion, reduced: boolean): { animate: boolean; fx: boolean; reactions: boolean }  // lively → all true; calm → animate only; off or reduced → all false
   ```
+- Shape-less legacy agents keep today's silhouette: `resolveLook` passes AWFlow's current `LEGACY_SHAPES[hashOf(id ?? name) % 5]` pick as `shape` when `avatar.shape` is missing (controller ruling, spec §8).
 - `AgentCharacter` keeps props `look, mood, size, follow, seed, class`; renders `<Avatar name={seedName} {...lookToOptions(look)} activity={moodToActivity(mood)} framing="full" frame="none" size gaze={follow && size >= 44 ? 'pointer' : undefined} {...motionToProps(...)}/>`. `seedName` = the agent id or name passed down from `AgentAvatar` (add an optional `name` prop; default `look.color`).
 - `AgentMood` gains `'speaking'`.
 
-- [ ] **Step 1: Write the failing tests:** each `moodToActivity` row; `motionToProps` table (lively/calm/off × reduced); `lookToOptions` for a pebble/headphones look equals `fromLegacy` output; rendering `AgentCharacter` at size 16 yields an `<svg>` with no `fx.` keyed nodes; at size 96 with `mood: 'waiting'` it contains the ask badge.
+- [ ] **Step 1: Write the failing tests:** each `moodToActivity` row; `motionToProps` table (lively/calm/off × reduced); `lookToOptions` for a pebble/headphones look equals `fromLegacy` output; rendering `AgentCharacter` at size 16 yields an `<svg>` whose `fx.` pool has exactly 3 nodes, all hidden (opacity 0) unless the agent waits for approval; at size 96 with `mood: 'waiting'` it contains the ask badge.
 - [ ] **Step 2:** Run `bun run test:unit -- --run src/lib/assistant/agents/__tests__/look.test.ts src/lib/components/agents/__tests__/AgentCharacter.svelte.test.ts`. Expected: FAIL.
 - [ ] **Step 3:** Add the `file:` dependencies, implement the mapping functions and the wrapper.
 - [ ] **Step 4:** Run the tests and `bun run build`. Expected: PASS / exit 0. Manually load the extension (or `bun run dev:web`) and check the agents page, a chat and a team thread render.
