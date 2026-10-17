@@ -237,6 +237,23 @@ describe('client', () => {
     expect(react).toHaveBeenCalledWith('nod')
   })
 
+  test('a reactKey change with an identity change plays on the new svg', () => {
+    const react = vi.spyOn(Live.prototype, 'react')
+    let r!: AvatarRef
+    const view = show({ name: 'Ada', reactKey: 0 }, (p) => (
+      <Avatar ref={r} animate reaction='nod' {...p()} />
+    ))
+    const before = r.element
+    // one owner, the handle: it rebuilds, then plays on the new Live
+    view.set({ name: 'Linh', reactKey: 1 })
+    expect(r.element).not.toBe(before)
+    expect(react).toHaveBeenCalledTimes(1)
+    expect(react.mock.contexts[0] === (r.getHandle() as any).live).toBe(true)
+    // an identity change alone plays nothing
+    view.set({ name: 'Grace', reactKey: 1 })
+    expect(react).toHaveBeenCalledTimes(1)
+  })
+
   test('the ref reaches the live rig', () => {
     const react = vi.spyOn(Live.prototype, 'react')
     const pulse = vi.spyOn(Live.prototype, 'pulse')
@@ -359,11 +376,15 @@ describe('AvatarGroup', () => {
     let a!: AvatarRef
     let b!: AvatarRef
     let c!: AvatarRef
-    type S = { speaker: string | undefined; withB: boolean }
-    const view = show<S>({ speaker: 'B', withB: true }, (s) => (
+    // B's presence is its own signal: removing B must not re-run the
+    // group's speaker effect, which would re-aim everyone and hide a
+    // regression in the group's own clearing
+    const [withB, setWithB] = createSignal(true)
+    type S = { speaker: string | undefined }
+    const view = show<S>({ speaker: 'B' }, (s) => (
       <AvatarGroup speaker={s().speaker}>
         <Avatar ref={a} name='A' animate />
-        <Show when={s().withB}>
+        <Show when={withB()}>
           <Avatar ref={b} name='B' animate />
         </Show>
         <Avatar ref={c} name='C' animate />
@@ -373,16 +394,24 @@ describe('AvatarGroup', () => {
     expect(lastAim(lookAt, liveOf(a))).toBe(B)
     expect(lastAim(lookAt, liveOf(c))).toBe(B)
     expect(lastAim(lookAt, B)).toBe(null)
-    view.set({ speaker: 'A', withB: true })
+    view.set({ speaker: 'A' })
     expect(lastAim(lookAt, B)).toBe(liveOf(a))
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
     // a speaker who is not a member: everyone looks ahead
-    view.set({ speaker: 'Z', withB: true })
+    view.set({ speaker: 'Z' })
     for (const r of [a, b, c]) expect(lastAim(lookAt, liveOf(r))).toBe(null)
     // the speaker leaves while speaking: the others look ahead again
-    view.set({ speaker: 'B', withB: true })
+    view.set({ speaker: 'B' })
     expect(lastAim(lookAt, liveOf(a))).toBe(B)
-    view.set({ speaker: 'B', withB: false })
+    // the group itself clears the others' gaze (spied on the handles: the
+    // core's own reset when B's handle dies must not hide a regression)
+    const handleA = vi.spyOn(a.getHandle()!, 'lookAt')
+    const handleC = vi.spyOn(c.getHandle()!, 'lookAt')
+    setWithB(false)
+    expect(handleA).toHaveBeenCalledWith(null)
+    expect(handleC).toHaveBeenCalledWith(null)
+    expect(handleA.mock.lastCall![0]).toBe(null)
+    expect(handleC.mock.lastCall![0]).toBe(null)
     expect(b.getHandle()).toBe(null)
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
     expect(lastAim(lookAt, liveOf(c))).toBe(null)
