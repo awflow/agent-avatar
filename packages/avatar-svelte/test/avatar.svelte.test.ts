@@ -131,7 +131,8 @@ const testHat = {
 describe('packaging', () => {
   test('src holds no tests: svelte-package ships all of src', async () => {
     const { readdirSync } = await import('node:fs')
-    const files = readdirSync('src', { recursive: true }) as string[]
+    // src is flat: svelte-package copies every file in it
+    const files = readdirSync('src')
     expect(files.filter((f) => /\.test\./.test(f))).toEqual([])
   })
 })
