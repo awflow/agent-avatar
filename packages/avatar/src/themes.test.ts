@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { toSvg } from './svg'
 import { COLORS, EXPRESSIONS, type Expression } from './tables'
-import { defineTheme, parseHex, THEMES, themeOf } from './themes'
+import {
+  defineTheme,
+  parseHex,
+  resetThemesForTests,
+  THEMES,
+  themeOf,
+} from './themes'
 
 const NAMES = ['Ada Lovelace', 'Linh', 'Đoàn', '東京']
 const idOf = (svg: string) => /id="((?:peek|awf)-[^"]*?)-f"/.exec(svg)?.[1]
@@ -52,14 +58,14 @@ describe('themes', () => {
   })
 
   test('defineTheme registers', () => {
-    // a unique name, put back to soft afterwards so nothing leaks
+    // a unique name, forgotten afterwards so nothing leaks
     const name = 'themes-test-registered'
     try {
       defineTheme({ ...THEMES.soft, name })
       expect(themeOf(name).name).toBe(name)
       expect(themeOf('nope')).toBe(THEMES.soft)
     } finally {
-      defineTheme({ ...THEMES.soft, name })
+      resetThemesForTests()
     }
   })
 

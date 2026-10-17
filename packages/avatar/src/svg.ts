@@ -17,27 +17,42 @@ import {
   restPose,
 } from './draw'
 import { type Axes, fnv1a, type Identity, identify, LISTS } from './identity'
+import { accessoryOf, propOf, shapeOf } from './plugins'
 import {
   COLORS,
   type Color,
   type Decor,
   type Expression,
+  type Eyewear,
   type Face,
+  type Headwear,
   type Motif,
+  type Neckwear,
   PROPS,
   type Prop,
 } from './tables'
 import { deepOf, type Ink, parseHex, themeOf } from './themes'
+import type { WearSlot } from './wardrobe/context'
 
-export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
-  /** The body silhouette. */
-  shape?: Face
+// a built-in name, or a registered plugin's (never hashed)
+type Or<T> = T | (string & {})
+
+export type AvatarOptions = Omit<
+  Partial<Axes>,
+  'color' | 'face' | 'eyewear' | 'headwear' | 'neckwear' | 'decor'
+> & {
+  /** The body silhouette: a built-in shape or a registered shape plugin. */
+  shape?: Or<Face>
   /** A face decoration (v2+). Under version 1 it keeps Peek's meaning: the silhouette. */
-  face?: Decor | Face
+  face?: Or<Decor | Face>
+  eyewear?: Or<Eyewear>
+  headwear?: Or<Headwear>
+  neckwear?: Or<Neckwear>
+  decor?: Or<Decor>
   /** 'peek@1' | 'peek@2': pins the version; an explicit version wins. */
   style?: 'peek@1' | 'peek@2'
-  /** A hand-held prop; never hashed, drawn from Plan 3. */
-  prop?: Prop
+  /** A hand-held prop, built-in or a registered prop plugin; never hashed. */
+  prop?: Or<Prop>
   /** A palette slot, or any #rgb / #rrggbb hex for a custom body ink. */
   color?: Color | `#${string}`
   /** Draw this motif; default the hash's, or plain on themes without motifs. */
@@ -86,6 +101,12 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
 const take = <A extends keyof Axes>(axis: A, v: unknown, base: Axes[A]) =>
   (LISTS[axis] as readonly unknown[]).includes(v) ? (v as Axes[A]) : base
 
+// a registered plugin is reachable by override only, never by the hash
+const wearOr = <A extends WearSlot>(axis: A, v: unknown, base: Axes[A]) =>
+  accessoryOf(axis, v) ? (v as Axes[A]) : take(axis, v, base)
+const shapeOr = (v: unknown, base: Face) =>
+  shapeOf(v) ? (v as Face) : take('face', v, base)
+
 const clamp01 = (v: number) =>
   Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
 
@@ -119,24 +140,25 @@ export function settle(
       : undefined
   const who: Identity & { prop: Prop } = {
     ...base,
-    face: take('face', o.shape ?? (v1 ? o.face : undefined), base.face),
+    face: shapeOr(o.shape ?? (v1 ? o.face : undefined), base.face),
     color: named ?? base.color,
     eyes: take('eyes', o.eyes, base.eyes),
     brows: take('brows', o.brows, base.brows),
     mouth: take('mouth', o.mouth, base.mouth),
     cheeks: take('cheeks', o.cheeks, base.cheeks),
     trait: take('trait', o.trait, base.trait),
-    eyewear: take('eyewear', o.eyewear, base.eyewear),
-    headwear: take('headwear', o.headwear, base.headwear),
-    neckwear: take('neckwear', o.neckwear, base.neckwear),
+    eyewear: wearOr('eyewear', o.eyewear, base.eyewear),
+    headwear: wearOr('headwear', o.headwear, base.headwear),
+    neckwear: wearOr('neckwear', o.neckwear, base.neckwear),
     // the theme decides whether the hashed motif is drawn at all
     motif: theme.motifs
       ? take('motif', o.motif, base.motif)
       : take('motif', o.motif, 'plain'),
-    decor: take('decor', v1 ? o.decor : (o.face ?? o.decor), base.decor),
-    prop: (PROPS as readonly unknown[]).includes(o.prop)
-      ? (o.prop as Prop)
-      : 'none',
+    decor: wearOr('decor', v1 ? o.decor : (o.face ?? o.decor), base.decor),
+    prop:
+      (PROPS as readonly unknown[]).includes(o.prop) || propOf(o.prop)
+        ? (o.prop as Prop)
+        : 'none',
   }
   const pose = restPose(
     who,

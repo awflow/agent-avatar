@@ -12,6 +12,7 @@
 import type { Drawable, Pose } from '../draw'
 import type { Node } from '../node'
 import type { SwingSpec } from '../physics'
+import { accessoryOf } from '../plugins'
 import type { Channel, FaceGeom } from '../tables'
 import type { Ink, Theme } from '../themes'
 import { DECOR } from './decor'
@@ -70,7 +71,11 @@ export function springsOf(
   const out: Partial<Record<SwingSlot, SwingSpec>> = {}
   for (const slot of SPRUNG) {
     const name = who[slot]
-    const spec = name ? WEAR[slot][name]?.physics : undefined
+    const spec = !name
+      ? undefined
+      : Object.hasOwn(WEAR[slot], name)
+        ? WEAR[slot][name]!.physics
+        : accessoryOf(slot, name)?.physics
     if (spec) out[slot] = spec
   }
   return out

@@ -15,12 +15,19 @@ import { clamp, depth, RAD, seat, smooth } from './geom'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import { type Attrs, type Node, n, prune } from './node'
 import {
+  accessoryOf,
+  drawPlugin,
+  fxOf,
+  fxPluginShapes,
+  geomOf,
+  propOf,
+} from './plugins'
+import {
   ACCESSORY_INK,
   type Channel,
   type Channels,
   COLORS,
   type Expression,
-  FACES,
   type FaceGeom,
   INK,
 } from './tables'
@@ -77,8 +84,8 @@ export type Pose = Channels & {
   t: number
   /** Wobble energy for the live rig; 0 is still. */
   wob: number
-  /** The overlay being drawn, if any. */
-  fx: FxKind | null
+  /** The overlay being drawn, if any: a built-in kind or a registered fx plugin. */
+  fx: FxKind | (string & {}) | null
   /** 0..1 progress of that overlay. */
   fxP: number
   /** 0..1 mouth open from lip-sync, -1 for none. */
@@ -213,7 +220,7 @@ export function restPose(
   const g =
     (lock ? undefined : gaze) ??
     (expression === 'curious' && !lock
-      ? thingGaze(FACES[who.face], 0, s.alt)
+      ? thingGaze(geomOf(who.face), 0, s.alt)
       : null)
   if (g) [pose.gx, pose.gy] = g
   return pose
@@ -457,7 +464,7 @@ function skinOf(
 }
 
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
-  const sh: FaceGeom = FACES[who.face]
+  const sh: FaceGeom = geomOf(who.face)
   const T = o.theme ?? THEMES.soft
   const slot: Ink = o.ink ?? T.colors[who.color]
   const { body: fill, deep } = slot
@@ -1176,8 +1183,10 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     size: o.size,
   }
   const wearOf = (kind: WearSlot, name: string) => {
-    const item = Object.hasOwn(WEAR[kind], name) ? WEAR[kind][name] : undefined
-    return item ? item.draw(ctx) : []
+    if (Object.hasOwn(WEAR[kind], name)) return WEAR[kind][name]!.draw(ctx)
+    // a registered plugin, after the built-ins: never shadows one
+    const plug = accessoryOf(kind, name)
+    return plug ? [drawPlugin(plug, ctx)] : []
   }
   const wear = (kind: WearSlot, name: string) => {
     wardrobe.push(...wearOf(kind, name))
@@ -1443,12 +1452,14 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // squash, so a bubble does not lean with the head. Below 44px only the ask
   // badge stays, grown to read.
   const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
-  const kinds: FxKind[] = []
+  const kinds: string[] = []
+  // built-in kinds first, then a registered fx plugin of that name
+  const drawable = (k: string) =>
+    (FX_KINDS as string[]).includes(k) || fxOf(k) !== undefined
   if (o.fx !== false) {
     kinds.push(...(ACTIVITIES[pose.activity]?.fx ?? []))
-    if (pose.fx) kinds.push(pose.fx)
-    if (typeof o.fx === 'string' && (FX_KINDS as string[]).includes(o.fx))
-      kinds.push(o.fx as FxKind)
+    if (pose.fx && drawable(pose.fx)) kinds.push(pose.fx)
+    if (typeof o.fx === 'string' && drawable(o.fx)) kinds.push(o.fx)
   }
   const anchor = {
     headX: 170 + x,
@@ -1459,9 +1470,22 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   }
   const shapes = kinds
     .filter((kind) => tier >= 2 || kind === 'ask')
-    .flatMap((kind) =>
-      fxShapes(kind, pose.t, pose.fxP, anchor, inkC, dark, tier < 2 ? 1.8 : 1),
-    )
+    .flatMap((kind) => {
+      const plug = (FX_KINDS as string[]).includes(kind)
+        ? undefined
+        : fxOf(kind)
+      return plug
+        ? fxPluginShapes(plug, pose.t, pose.fxP, anchor)
+        : fxShapes(
+            kind as FxKind,
+            pose.t,
+            pose.fxP,
+            anchor,
+            inkC,
+            dark,
+            tier < 2 ? 1.8 : 1,
+          )
+    })
   // the tier follows the size, which never changes on a live avatar, so the
   // node set holds: below tier 2 three nodes are enough for the ask badge
   const poolSize = tier >= 2 ? FX_POOL : FX_POOL_SMALL
@@ -1491,7 +1515,9 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // the layer is there at every size and a static tree prunes it when empty.
   // It sits beside the body inside the visible frame; under full framing the
   // frame maps back through the framing transform into the group's space.
-  const holds = !!who.prop && Object.hasOwn(HELD_PROPS, who.prop)
+  const builtInProp = !!who.prop && Object.hasOwn(HELD_PROPS, who.prop)
+  const propPlug = builtInProp ? undefined : propOf(who.prop)
+  const holds = builtInProp || propPlug !== undefined
   const fullC = (top - HEADROOM + sh.bottom) / 2 + baseY
   const toLocal = (v: number, c: number) =>
     full ? (v - 170) / FULL_SCALE + c : v
@@ -1509,25 +1535,22 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       : [170, full ? fullC : 170, full ? 200 / FULL_SCALE : 200],
     scale: full ? FULL_SCALE : 1,
   }
+  const propNodes = () => {
+    const propCtx = {
+      ...ctx,
+      propAt: swayed(
+        propSpot(sh, baseY, spread, bound, 0.4 * R),
+        x,
+        ty - baseY,
+        bound,
+      ),
+    }
+    return propPlug
+      ? [drawPlugin(propPlug, propCtx)]
+      : HELD_PROPS[who.prop as PropName].draw(propCtx)
+  }
   const propLayer = holds
-    ? [
-        n(
-          'g',
-          'prop',
-          {},
-          tier >= 2
-            ? HELD_PROPS[who.prop as PropName].draw({
-                ...ctx,
-                propAt: swayed(
-                  propSpot(sh, baseY, spread, bound, 0.4 * R),
-                  x,
-                  ty - baseY,
-                  bound,
-                ),
-              })
-            : [],
-        ),
-      ]
+    ? [n('g', 'prop', {}, tier >= 2 ? propNodes() : [])]
     : []
 
   // full framing: the whole body plus hat room, centred and scaled down; the

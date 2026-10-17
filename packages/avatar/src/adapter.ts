@@ -17,6 +17,10 @@ export {
   type Pose,
   restPose,
 } from './draw'
+export {
+  plugins,
+  registerPlugins,
+} from './plugins'
 export { REACTIONS, type Reaction } from './reactions'
 export { type AvatarOptions, serialize, settle, toSvg } from './svg'
 export {

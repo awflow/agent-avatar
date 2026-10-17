@@ -35,12 +35,12 @@ import {
   VB,
 } from './draw'
 import { type Swing, type SwingSpec, stepSwing } from './physics'
+import { geomOf } from './plugins'
 import { REACTIONS, type Reaction, reactionOf } from './reactions'
 import {
   type Channel,
   type Channels,
   type Expression,
-  FACES,
   GROUPS,
   type Group,
 } from './tables'
@@ -419,7 +419,7 @@ export class Live {
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
     this.lookThing =
       expression === 'curious' && !ACTIVITIES[this.activity].lockGaze
-    this.lag.y = -start.alt * frameOf(FACES[who.face]).R
+    this.lag.y = -start.alt * frameOf(geomOf(who.face)).R
     this.reduced = reducedMotion()
     // the DOM may hold a pose other than this one: the first paint fixes it
     this.paint()
@@ -461,7 +461,7 @@ export class Live {
     if (!reduced) {
       // pick up from the static frame snap() left: the trait sits still
       this.handOff()
-      this.lag = { y: -this.val.alt * frameOf(FACES[this.who.face]).R, v: 0 }
+      this.lag = { y: -this.val.alt * frameOf(geomOf(this.who.face)).R, v: 0 }
       LIVE.add(this)
       run()
       return
@@ -498,7 +498,7 @@ export class Live {
     if (t instanceof Live) {
       const r = t.svg.getBoundingClientRect()
       if (!(r.width > 0)) return null
-      const { baseY, eyeY, R } = frameOf(FACES[t.who.face])
+      const { baseY, eyeY, R } = frameOf(geomOf(t.who.face))
       const ex = 170 + t.val.x
       const ey = eyeY + baseY - t.val.alt * R
       return [
@@ -739,7 +739,7 @@ export class Live {
     const t = this.clock
     const age = t - this.enteredAt
     const st = this.state
-    const face = FACES[this.who.face]
+    const face = geomOf(this.who.face)
     while (this.queue.length && this.queue[0]!.at <= t) {
       const q = this.queue.shift()!
       if (q.spr)
@@ -969,7 +969,7 @@ export class Live {
   }
 
   private paint() {
-    const R = frameOf(FACES[this.who.face]).R
+    const R = frameOf(geomOf(this.who.face)).R
     const pose = {
       blink: this.blinkV,
       expression: this.state,

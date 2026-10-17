@@ -180,12 +180,81 @@ const clay: Theme = {
 export const THEMES: Record<'soft' | 'bold' | 'mono' | 'neon' | 'clay', Theme> =
   { soft, bold, mono, neon, clay }
 
+const BUILT_IN: ReadonlySet<string> = new Set(Object.keys(THEMES))
 const registry = new Map<string, Theme>(Object.entries(THEMES))
+// what each custom name was registered from, so the same input twice is a no-op
+const sources = new Map<string, Theme>()
 
-/** Register a theme by name (replaces one of the same name). */
-export function defineTheme(t: Theme): Theme {
-  registry.set(t.name, t)
-  return t
+/** A theme as a plugin: `registerPlugins([{ kind: 'theme', theme }])`. */
+export type ThemePlugin = { kind: 'theme'; theme: Theme }
+
+const colour = (where: string, v: unknown) => {
+  const hex = typeof v === 'string' ? parseHex(v) : null
+  if (!hex)
+    throw new Error(
+      `${where} ${JSON.stringify(v)} is not a #rgb or #rrggbb colour`,
+    )
+  return hex
+}
+
+/** A checked copy with every colour normalised to lowercase #rrggbb. */
+function normalise(t: Theme): Theme {
+  if (!t || typeof t.name !== 'string' || t.name === '')
+    throw new Error('a theme needs a name')
+  const at = `theme "${t.name}":`
+  if (!t.colors || typeof t.colors !== 'object')
+    throw new Error(`${at} colors is missing`)
+  const colors = slots((_, k) => {
+    const c = Object.hasOwn(t.colors, k) ? t.colors[k] : undefined
+    if (!c) throw new Error(`${at} colors.${k} is missing`)
+    return {
+      body: colour(`${at} colors.${k}.body`, c.body),
+      deep: colour(`${at} colors.${k}.deep`, c.deep),
+    }
+  })
+  return { ...t, frame: colour(`${at} frame`, t.frame), colors }
+}
+
+/**
+ * Registers a custom theme and returns the registered copy. Built-in names
+ * are refused; the same input twice is a no-op; another theme with a taken
+ * name throws. `check` validates without registering.
+ */
+export function registerTheme(t: Theme, check = false): Theme {
+  const name = t?.name
+  if (typeof name === 'string' && BUILT_IN.has(name))
+    throw new Error(`"${name}" is a built-in theme and cannot be replaced`)
+  const had = typeof name === 'string' ? registry.get(name) : undefined
+  if (had && (sources.get(name) === t || had === t)) return had
+  if (had) throw new Error(`theme "${name}" is taken by another theme`)
+  const out = normalise(t)
+  if (!check) {
+    registry.set(name, out)
+    sources.set(name, t)
+  }
+  return out
+}
+
+/**
+ * Registers a theme by name and returns it, usable both as a Theme and as a
+ * ThemePlugin for registerPlugins(). Built-in names (soft, bold, mono, neon,
+ * clay) cannot be replaced; colours are normalised to lowercase #rrggbb.
+ */
+export function defineTheme(t: Theme): Theme & ThemePlugin {
+  const out = registerTheme(t) as Theme & Partial<ThemePlugin>
+  // hidden from enumeration, so the theme still spreads and serialises plainly
+  if (!out.kind)
+    Object.defineProperties(out, {
+      kind: { value: 'theme', enumerable: false },
+      theme: { value: out, enumerable: false },
+    })
+  return out as Theme & ThemePlugin
+}
+
+/** Test-only: forget every custom theme. */
+export function resetThemesForTests() {
+  for (const name of sources.keys()) registry.delete(name)
+  sources.clear()
 }
 
 /** A theme by name; unknown or missing is soft. */

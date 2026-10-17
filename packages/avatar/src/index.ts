@@ -17,6 +17,22 @@ export type { FxAnchor, FxKind, FxShape } from './fx'
 export { FX_KINDS, fxShapes } from './fx'
 export type { Axes, Identity, Persona } from './identity'
 export { AXES, identify, LISTS, tidy } from './identity'
+export type {
+  AccessoryPlugin,
+  FxPlugin,
+  Plugin,
+  PropPlugin,
+  ShapePlugin,
+  ThemePlugin,
+} from './plugins'
+export {
+  defineAccessory,
+  defineFx,
+  defineProp,
+  defineShape,
+  plugins,
+  registerPlugins,
+} from './plugins'
 export type { Reaction, ReactionSpec } from './reactions'
 export { REACTIONS } from './reactions'
 export type { AvatarOptions } from './svg'
@@ -53,3 +69,4 @@ export {
 } from './tables'
 export type { Ink, Theme } from './themes'
 export { deepOf, defineTheme, parseHex, THEMES, themeOf } from './themes'
+export type { WearCtx, WearDraw } from './wardrobe/context'
