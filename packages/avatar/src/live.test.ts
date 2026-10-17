@@ -1,57 +1,11 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { GlobalRegistrator } from '@happy-dom/global-registrator'
+import { describe, expect, test } from 'bun:test'
 import type { Activity } from './activity'
 import { Live } from './animate'
 import { draw, type Node, restPose } from './draw'
-import { type AvatarOptions, serialize, settle } from './svg'
+import { serialize, settle } from './svg'
+import { fakeDom, motion, mount } from './test/dom'
 
-/*
- * The rig on a fake DOM: rAF never fires (each test drives step() itself),
- * the IntersectionObserver is inert and reduced motion is a switch.
- */
-// one switch for every test file: the rig caches the first query it sees
-const g = globalThis as any
-g.__motion ??= { reduce: false }
-const motion: { reduce: boolean } = g.__motion
-beforeAll(() => {
-  GlobalRegistrator.register()
-  globalThis.requestAnimationFrame = () => 1
-  globalThis.cancelAnimationFrame = () => {}
-  globalThis.IntersectionObserver = class {
-    observe() {}
-    disconnect() {}
-  } as any
-  // the rig caches one query for the page: read the switch live
-  globalThis.matchMedia = ((q: string) => ({
-    get matches() {
-      return motion.reduce && q.includes('reduce')
-    },
-    addEventListener() {},
-  })) as any
-})
-afterAll(async () => {
-  await GlobalRegistrator.unregister()
-})
-
-function mount(name: string, o: AvatarOptions = {}, reduced = false) {
-  motion.reduce = reduced
-  const { who, pose, opts } = settle(name, o, true)
-  const tree = draw(who, pose, opts)
-  const host = document.createElement('div')
-  host.innerHTML = serialize(tree)
-  const svg = host.querySelector('svg') as unknown as SVGSVGElement
-  const live = new Live(
-    svg,
-    tree,
-    who,
-    opts,
-    o.expression ?? 'normal',
-    o.gaze,
-    o.activity,
-  )
-  const count = () => svg.querySelectorAll('*').length
-  return { live, svg, count, who, opts, rig: live as any }
-}
+fakeDom()
 
 describe('Live.setActivity', () => {
   test('working moves gx over time and keeps the node count', () => {

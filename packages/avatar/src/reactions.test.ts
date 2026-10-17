@@ -1,55 +1,12 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { GlobalRegistrator } from '@happy-dom/global-registrator'
+import { describe, expect, test } from 'bun:test'
 import { type Activity, activityLoop } from './activity'
-import { Live } from './animate'
 import { draw, loopPhase, REST_T, restPose } from './draw'
 import { REACTIONS, type Reaction } from './reactions'
-import { type AvatarOptions, serialize, settle } from './svg'
+import { settle } from './svg'
 import { EXPRESSIONS, GROUPS } from './tables'
+import { fakeDom, motion, mount } from './test/dom'
 
-// one switch for every test file: the rig caches the first query it sees
-const g = globalThis as any
-g.__motion ??= { reduce: false }
-const motion: { reduce: boolean } = g.__motion
-beforeAll(() => {
-  GlobalRegistrator.register()
-  globalThis.requestAnimationFrame = () => 1
-  globalThis.cancelAnimationFrame = () => {}
-  globalThis.IntersectionObserver = class {
-    observe() {}
-    disconnect() {}
-  } as any
-  globalThis.matchMedia = ((q: string) => ({
-    get matches() {
-      return motion.reduce && q.includes('reduce')
-    },
-    addEventListener() {},
-  })) as any
-})
-afterAll(async () => {
-  // the rig caches one motion query for the whole run: leave it off
-  motion.reduce = false
-  await GlobalRegistrator.unregister()
-})
-
-function mount(name: string, o: AvatarOptions = {}, reduced = false) {
-  motion.reduce = reduced
-  const { who, pose, opts } = settle(name, o, true)
-  const tree = draw(who, pose, opts)
-  const host = document.createElement('div')
-  host.innerHTML = serialize(tree)
-  const svg = host.querySelector('svg') as unknown as SVGSVGElement
-  const live = new Live(
-    svg,
-    tree,
-    who,
-    opts,
-    o.expression ?? 'normal',
-    o.gaze,
-    o.activity,
-  )
-  return { live, svg, who, opts, rig: live as any }
-}
+fakeDom()
 
 const NAMES = Object.keys(REACTIONS) as Reaction[]
 const shown = (rig: any, c: string) => rig.val[c] + rig.out[c]
