@@ -57,7 +57,7 @@ Bind the component (`bind:this={avatar}`) to call:
 
 ## Docs
 
-Full documentation: <https://github.com/awflow/avatar#readme>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## License
 

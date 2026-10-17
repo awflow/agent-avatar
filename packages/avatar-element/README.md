@@ -47,7 +47,7 @@ Importing in Node is safe and defines nothing.
 
 ## Docs
 
-Full documentation: <https://github.com/awflow/avatar#readme>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## License
 

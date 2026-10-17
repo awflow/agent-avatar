@@ -23,7 +23,7 @@ import type { AvatarProps } from '@awflow/avatar-react'
 import { FRAMEWORKS, INSTALL, type Look, snippet } from './frameworks.ts'
 
 export const SITE = 'https://[docs domain]'
-export const REPO = 'https://github.com/awflow/avatar'
+export const REPO = 'https://github.com/awflow/agent-avatar'
 export const PEEK = 'https://peek.doan-labs.com'
 
 export type Lang = 'tsx' | 'ts' | 'bash' | 'svelte' | 'vue' | 'html' | 'diff'

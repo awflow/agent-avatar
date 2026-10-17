@@ -67,7 +67,7 @@ shorter than 2/100 s, so keep GIFs at 50 fps or less. APNG timing is exact.
 
 ## Docs
 
-Full documentation: <https://github.com/awflow/avatar#readme>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## Credits
 

@@ -50,10 +50,10 @@
   "description": "Deterministic SVG avatars from a name, as a Svelte component.",
   "license": "MIT",
   "author": "AWFlow",
-  "homepage": "https://github.com/awflow/avatar",
+  "homepage": "https://github.com/awflow/agent-avatar",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/awflow/avatar.git",
+    "url": "git+https://github.com/awflow/agent-avatar.git",
     "directory": "packages/avatar-svelte"
   },
   "keywords": [
