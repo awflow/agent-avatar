@@ -1,6 +1,6 @@
 export type { AvatarProps } from './avatar'
 export { Avatar } from './avatar'
-export type { Frame, Gaze, Node } from './draw'
+export type { Frame, Framing, Gaze, Node, Ring } from './draw'
 /** Low level: the drawing tree that toSvg and <Avatar> both render. */
 export { draw } from './draw'
 export type { Axes, Identity, Persona } from './identity'

@@ -7,9 +7,11 @@ import {
   type DrawOptions,
   draw,
   type Frame,
+  type Framing,
   type Gaze,
   type Node,
   type Pose,
+  type Ring,
   restPose,
 } from './draw'
 import { type Axes, fnv1a, type Identity, identify, LISTS } from './identity'
@@ -56,6 +58,12 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
   version?: number
   /** Let the name pick the wardrobe too (v2+). Default off. */
   dress?: boolean
+  /** A presence ring around the frame; progress 0..1 draws an arc. */
+  ring?: Ring | null
+  /** 'peek' crops at the floor (default); 'full' shows the whole body. */
+  framing?: Framing
+  /** Thin the face out at small sizes. Default on from version 2, off at 1. */
+  lod?: boolean
   /** Prefix for ids inside the SVG. Default derived from everything drawn,
    * so two different avatars inlined in one page never share defs. */
   id?: string
@@ -64,6 +72,9 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
 // an unknown value from untyped callers keeps what the name picked
 const take = <A extends keyof Axes>(axis: A, v: unknown, base: Axes[A]) =>
   (LISTS[axis] as readonly unknown[]).includes(v) ? (v as Axes[A]) : base
+
+const clamp01 = (v: number) =>
+  Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
 
 const STYLES = { 'peek@1': 1, 'peek@2': 2 } as const
 
@@ -122,10 +133,25 @@ export function settle(
     riso: o.riso ?? false,
     live,
   }
-  // theme name and custom ink join the id only when set: peek@1 ids hold
+  const framing: Framing = o.framing === 'full' ? 'full' : 'peek'
+  const ring =
+    o.ring && typeof o.ring.color === 'string'
+      ? {
+          color: o.ring.color,
+          progress: clamp01(o.ring.progress ?? 1),
+          pulse: o.ring.pulse === true,
+        }
+      : null
+  const lodDefault = who.version >= 2
+  const lod = typeof o.lod === 'boolean' ? o.lod : lodDefault
+  // theme name, custom ink, framing, ring and a non-default lod join the id
+  // only when set: existing ids hold
   const extra = {
     ...(theme.name === 'soft' ? {} : { theme: theme.name }),
     ...(ink ? { ink } : {}),
+    ...(framing === 'full' ? { framing } : {}),
+    ...(ring ? { ring } : {}),
+    ...(lod !== lodDefault ? { lod } : {}),
   }
   // Keep the byte-level peek@1 contract: an axis at its v1 default (no
   // wardrobe, plain motif, no decor) stays out of the hashed identity.
@@ -148,7 +174,16 @@ export function settle(
   return {
     who,
     pose,
-    opts: { ...look, theme, ink, id, title: o.title ?? name },
+    opts: {
+      ...look,
+      theme,
+      ink,
+      id,
+      title: o.title ?? name,
+      framing,
+      ring,
+      lod,
+    },
   }
 }
 

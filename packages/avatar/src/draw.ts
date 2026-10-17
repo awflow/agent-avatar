@@ -39,6 +39,10 @@ const luma = (hex: string) => {
 }
 
 export type Frame = 'ink' | 'bone' | 'paper' | 'none' | 'theme'
+/** 'peek' crops the body at the floor; 'full' shows all of it, hat room too. */
+export type Framing = 'peek' | 'full'
+/** A presence ring on the frame. `pulse` animates from Plan 2. */
+export type Ring = { color: string; progress?: number; pulse?: boolean }
 export type Gaze = readonly [x: number, y: number]
 
 export type Pose = Channels & {
@@ -68,6 +72,12 @@ export type DrawOptions = {
   title: string | false
   /** Keep invisible nodes so an animator can write into them. */
   live?: boolean
+  /** Default 'peek'. */
+  framing?: Framing
+  /** Default none. */
+  ring?: Ring | null
+  /** Level of detail from `size`. Off unless set (settle turns it on from v2). */
+  lod?: boolean
 }
 
 /** `key` (the tidied name) seeds the speckle motif. */
@@ -89,6 +99,19 @@ const f3 = (v: number) => String(Math.round(v * 1000) / 1000)
 const strokeFor = (px: number) =>
   px >= 96 ? 1 : px >= 56 ? 1.25 : px >= 40 ? 1.6 : px >= 30 ? 2 : 2.4
 const RAD = Math.PI / 180
+// hat room above the crown when the whole body is framed
+const HEADROOM = 48
+const FULL_SCALE = 0.8
+const RING_R = 190
+const RING_W = 12
+
+/**
+ * Level of detail, from the rendered size (never the pose, so a live tree
+ * keeps its nodes): 2 draws everything; 1 (below 44px) drops brows, cheeks,
+ * trait and prop; 0 (below 24px) keeps only the body and the eyes.
+ */
+export const tierOf = (px: number, lod = true): 0 | 1 | 2 =>
+  !lod ? 2 : px < 24 ? 0 : px < 44 ? 1 : 2
 // the sprout, drawn upward from where it is planted
 const STEM = 'M0 0Q3 -19 0 -36'
 const LEAF0 = 'M0 -33C-24 -30 -38 -52 -25 -53C-12 -54 -2 -43 0 -33Z'
@@ -483,16 +506,21 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const st = strokeFor(o.size)
   const { baseY, R } = frameOf(sh)
   const defs: Node[] = []
+  const tier = tierOf(o.size, o.lod ?? false)
+  const full = o.framing === 'full'
+  // nothing to frame the body in: let a full body spill past the viewBox
+  const spill = full && o.frame === 'none'
 
   // the frame
   const VBr = { x: VB[0], y: VB[1], width: VB[2], height: VB[3] }
-  defs.push(
-    n('clipPath', 'frame.clip', { id: `${id}-f` }, [
-      o.square
-        ? n('rect', 'frame.clip.shape', VBr)
-        : n('circle', 'frame.clip.shape', { cx: 170, cy: 170, r: 200 }),
-    ]),
-  )
+  if (!spill)
+    defs.push(
+      n('clipPath', 'frame.clip', { id: `${id}-f` }, [
+        o.square
+          ? n('rect', 'frame.clip.shape', VBr)
+          : n('circle', 'frame.clip.shape', { cx: 170, cy: 170, r: 200 }),
+      ]),
+    )
 
   // riso: registration error grows with size, nothing at 120px, about 1px
   // per plate at 480px and up; gentle edge wander plus mottled ink voids,
@@ -623,7 +651,14 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           r: sh.body.circle[2],
           fill,
         })
-  const skin = skinOf(who, sh, slot, T, id, defs)
+  const skin = skinOf(
+    tier === 0 ? { ...who, motif: 'plain' } : who,
+    sh,
+    slot,
+    T,
+    id,
+    defs,
+  )
 
   // eyes
   const eyeS = g('eyeS')
@@ -1366,7 +1401,12 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(-0.55, 0.45),
           filter: riso ? `url(#${id}-pA)` : undefined,
         },
-        [...skin.under, bodyNode, ...skin.over, ...cheeks, ...trait],
+        [
+          ...skin.under,
+          bodyNode,
+          ...skin.over,
+          ...(tier >= 2 ? [...cheeks, ...trait] : []),
+        ],
       ),
       n(
         'g',
@@ -1375,10 +1415,44 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(0.6, -0.5),
           filter: riso ? `url(#${id}-pB)` : undefined,
         },
-        [...eyes, ...brows, ...mouths, ...wardrobe],
+        // the LOD gate: wardrobe from tier 1, and the prop (Plan 3) joins
+        // here from tier 2
+        [
+          ...eyes,
+          ...(tier >= 2 ? brows : []),
+          ...(tier >= 1 ? [...mouths, ...wardrobe] : []),
+        ],
       ),
     ],
   )
+
+  // full framing: the whole body plus hat room, centred and scaled down
+  let framed = av
+  if (full) {
+    const body: Node[] = [av]
+    const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
+    const c = (top - HEADROOM + sh.bottom) / 2 + baseY
+    // clay rests on a soft contact shadow under the body's bottom
+    if (T.shading === 'clay')
+      body.unshift(
+        n('ellipse', 'shade.contact', {
+          cx: 170,
+          cy: f2(sh.bottom + baseY),
+          rx: f2(sh.side * 0.82),
+          ry: 13,
+          fill: INK.ink,
+          opacity: 0.16,
+        }),
+      )
+    framed = n(
+      'g',
+      'framing',
+      {
+        transform: `translate(170 170) scale(${FULL_SCALE}) translate(-170 ${f2(-c)})`,
+      },
+      body,
+    )
+  }
 
   // the thing in the corner: a dot lattice from the mark's vocabulary
   const scene: Node[] = []
@@ -1401,7 +1475,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       }
     scene.push(n('g', 'lattice', { fill: dark ? INK.bone : INK.ink }, dots))
   }
-  scene.push(av)
+  scene.push(framed)
   if (grainy)
     scene.push(
       n('rect', 'grain', {
@@ -1411,6 +1485,28 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         'pointer-events': 'none',
       }),
     )
+
+  // the presence ring: from 12 o'clock, clockwise, `progress` of the way
+  if (o.ring) {
+    const p = Number.isFinite(o.ring.progress ?? 1)
+      ? clamp(o.ring.progress ?? 1, 0, 1)
+      : 1
+    const C = 2 * Math.PI * RING_R
+    const arc = p < 1
+    scene.push(
+      n('circle', 'ring', {
+        cx: 170,
+        cy: 170,
+        r: RING_R,
+        fill: 'none',
+        stroke: o.ring.color,
+        'stroke-width': RING_W,
+        'stroke-linecap': arc && p > 0 ? 'round' : undefined,
+        'stroke-dasharray': arc ? `${f2(p * C)} ${f2(C)}` : undefined,
+        transform: arc ? 'rotate(-90 170 170)' : undefined,
+      }),
+    )
+  }
 
   const root = n(
     'svg',
@@ -1423,10 +1519,16 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       role: o.title === false ? undefined : 'img',
       'aria-label': o.title === false ? undefined : o.title,
       'aria-hidden': o.title === false ? 'true' : undefined,
+      overflow: spill ? 'visible' : undefined,
     },
     [
       n('defs', 'defs', {}, defs),
-      n('g', 'frame', { 'clip-path': `url(#${id}-f)` }, scene),
+      n(
+        'g',
+        'frame',
+        { 'clip-path': spill ? undefined : `url(#${id}-f)` },
+        scene,
+      ),
     ],
   )
   return o.live ? root : (prune(root) ?? root)
