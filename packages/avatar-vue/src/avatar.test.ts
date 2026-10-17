@@ -33,6 +33,7 @@ import {
   type VNode,
 } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+import { PARITY_CASES, versionOf } from '../../avatar/test/parity-cases'
 import { domId } from './avatar'
 import {
   Avatar,
@@ -96,40 +97,14 @@ const liveSvg = (name: string, opts: Parameters<typeof settle>[1]) => {
 const ssr = (props: Record<string, unknown>) =>
   renderToString(createSSRApp(Avatar, props as any))
 
-const CASES = [
-  { name: 'Ada Lovelace', opts: { expression: 'happy' as const } },
-  {
-    name: 'Linh',
-    opts: { expression: 'sad' as const, frame: 'bone' as const },
-  },
-  {
-    name: 'Doan Labs',
-    opts: {
-      expression: 'surprised' as const,
-      eyewear: 'glasses' as const,
-      headwear: 'sprout' as const,
-      neckwear: 'tie' as const,
-      size: 300,
-    },
-  },
-  { name: '東京', opts: { expression: 'curious' as const, square: false } },
-  {
-    name: 'Grace Hopper',
-    opts: {
-      activity: 'thinking' as const,
-      theme: 'bold',
-      headwear: 'antenna' as const,
-      framing: 'full' as const,
-    },
-  },
-]
+const CASES = PARITY_CASES
 
 describe('SSR parity with toSvg', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, async () => {
       const html = await ssr({ name, ...opts })
       expect(tree(html)).toBe(
-        tree(toSvg(name, { ...opts, id: await rootId() })),
+        tree(toSvg(name, { ...opts, id: await rootId(versionOf(opts)) })),
       )
     })
   }
@@ -191,7 +166,7 @@ describe('animated SSR emits the live tree', () => {
     test(`${name} ${JSON.stringify(opts)}`, async () => {
       const html = await ssr({ name, ...opts, animate: true })
       expect(tree(html)).toBe(
-        tree(liveSvg(name, { ...opts, id: await rootId() })),
+        tree(liveSvg(name, { ...opts, id: await rootId(versionOf(opts)) })),
       )
     })
   }
@@ -563,34 +538,44 @@ describe('AvatarGroup', () => {
   }
 
   test('members look at the speaker, the speaker looks ahead', async () => {
+    const error = vi.spyOn(console, 'error')
     const lookAt = vi.spyOn(Live.prototype, 'lookAt')
     const a = ref<AvatarExposed | null>(null)
     const b = ref<AvatarExposed | null>(null)
     const c = ref<AvatarExposed | null>(null)
-    type S = { speaker: string | undefined; withC: boolean }
-    const view = show<S>({ speaker: 'b', withC: true }, (s) =>
+    type S = { speaker: string | undefined; withB: boolean }
+    const view = show<S>({ speaker: 'B', withB: true }, (s) =>
       h(
         AvatarGroup,
         { speaker: s.speaker },
         {
           default: () => [
-            h(Avatar, { ref: a, name: 'a', animate: true }),
-            h(Avatar, { ref: b, name: 'b', animate: true }),
-            s.withC ? h(Avatar, { ref: c, name: 'c', animate: true }) : null,
+            h(Avatar, { ref: a, name: 'A', animate: true }),
+            s.withB ? h(Avatar, { ref: b, name: 'B', animate: true }) : null,
+            h(Avatar, { ref: c, name: 'C', animate: true }),
           ],
         },
       ),
     )
-    expect(lastAim(lookAt, liveOf(a))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(c))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
-    await view.render({ speaker: 'a', withC: true })
-    expect(lastAim(lookAt, liveOf(b))).toBe(liveOf(a))
+    const B = liveOf(b)
+    expect(lastAim(lookAt, liveOf(a))).toBe(B)
+    expect(lastAim(lookAt, liveOf(c))).toBe(B)
+    expect(lastAim(lookAt, B)).toBe(null)
+    await view.render({ speaker: 'A', withB: true })
+    expect(lastAim(lookAt, B)).toBe(liveOf(a))
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    await view.render({ speaker: undefined, withC: false })
+    // a speaker who is not a member: everyone looks ahead
+    await view.render({ speaker: 'Z', withB: true })
+    for (const r of [a, b, c]) expect(lastAim(lookAt, liveOf(r))).toBe(null)
+    // the speaker leaves while speaking: the others look ahead again
+    await view.render({ speaker: 'B', withB: true })
+    expect(lastAim(lookAt, liveOf(a))).toBe(B)
+    await view.render({ speaker: 'B', withB: false })
+    expect(b.value).toBe(null)
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
+    expect(lastAim(lookAt, liveOf(c))).toBe(null)
     expect(view.warns).toEqual([])
+    expect(error).not.toHaveBeenCalled()
   })
 
   test('renders no wrapper element', () => {

@@ -7,6 +7,7 @@ import {
 } from '@awflow/avatar/adapter'
 import { render } from 'svelte/server'
 import { describe, expect, test } from 'vitest'
+import { PARITY_CASES } from '../../avatar/test/parity-cases'
 import { Avatar } from './index'
 
 const strip = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '')
@@ -29,33 +30,7 @@ const liveSvg = (name: string, opts: Parameters<typeof settle>[1]) => {
   return serialize(draw(who, pose, d))
 }
 
-const CASES = [
-  { name: 'Ada Lovelace', opts: { expression: 'happy' as const } },
-  {
-    name: 'Linh',
-    opts: { expression: 'sad' as const, frame: 'bone' as const },
-  },
-  {
-    name: 'Doan Labs',
-    opts: {
-      expression: 'surprised' as const,
-      eyewear: 'glasses' as const,
-      headwear: 'sprout' as const,
-      neckwear: 'tie' as const,
-      size: 300,
-    },
-  },
-  { name: '東京', opts: { expression: 'curious' as const, square: false } },
-  {
-    name: 'Grace Hopper',
-    opts: {
-      activity: 'thinking' as const,
-      theme: 'bold',
-      headwear: 'antenna' as const,
-      framing: 'full' as const,
-    },
-  },
-]
+const CASES = PARITY_CASES
 
 describe('SSR parity with toSvg', () => {
   for (const { name, opts } of CASES) {

@@ -11,6 +11,7 @@ import {
   settle,
   toSvg,
 } from '@awflow/avatar/adapter'
+import { PARITY_CASES, versionOf } from '../../../avatar/test/parity-cases'
 
 /** The hydration key of the root component's span. */
 export const ROOT_HK = '01'
@@ -31,35 +32,8 @@ export function liveSvg(name: string, opts: AvatarOptions): string {
   return serialize(draw(who, pose, d))
 }
 
-export { toSvg }
-
-export const CASES = [
-  { name: 'Ada Lovelace', opts: { expression: 'happy' as const } },
-  {
-    name: 'Linh',
-    opts: { expression: 'sad' as const, frame: 'bone' as const },
-  },
-  {
-    name: 'Doan Labs',
-    opts: {
-      expression: 'surprised' as const,
-      eyewear: 'glasses' as const,
-      headwear: 'sprout' as const,
-      neckwear: 'tie' as const,
-      size: 300,
-    },
-  },
-  { name: '東京', opts: { expression: 'curious' as const, square: false } },
-  {
-    name: 'Grace Hopper',
-    opts: {
-      activity: 'thinking' as const,
-      theme: 'bold',
-      headwear: 'antenna' as const,
-      framing: 'full' as const,
-    },
-  },
-]
+/** The shared cross-adapter parity cases. */
+export { PARITY_CASES as CASES, toSvg, versionOf }
 
 // a plain-object plugin: register the same one on the server and the client
 export const testHat = {

@@ -9,7 +9,16 @@ import {
   toSvg,
 } from '@awflow/avatar/adapter'
 import { flushSync, mount, unmount } from 'svelte'
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  type MockInstance,
+  test,
+  vi,
+} from 'vitest'
+import GroupHarness from '../test/group-harness.svelte'
 import Avatar from './avatar.svelte'
 import { createGroup } from './group'
 
@@ -205,5 +214,67 @@ describe('group', () => {
     g.registerMember('b', b)
     expect(b.lookAt).toHaveBeenLastCalledWith(a)
     expect(a.lookAt).toHaveBeenLastCalledWith(null)
+  })
+})
+
+describe('AvatarGroup component', () => {
+  const liveOf = (inst: any) => (inst.getHandle() as any).live as Live
+
+  /* the last thing each Live was told to look at */
+  const lastAim = (spy: MockInstance, live: Live) => {
+    const i = spy.mock.contexts.lastIndexOf(live)
+    return i < 0 ? undefined : spy.mock.calls[i]![0]
+  }
+
+  test('members look at the speaker, the speaker looks ahead', () => {
+    const error = vi.spyOn(console, 'error')
+    const lookAt = vi.spyOn(Live.prototype, 'lookAt')
+    const refs: Record<string, any> = {}
+    const state = $state<{ speaker?: string; withB: boolean }>({
+      speaker: 'B',
+      withB: true,
+    })
+    // refs stays a plain object: bind:this writes straight into it
+    const props = {
+      get speaker() {
+        return state.speaker
+      },
+      get withB() {
+        return state.withB
+      },
+      refs,
+    }
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    const app = mount(GroupHarness, { target, props })
+    flushSync()
+    cleanup = () => {
+      unmount(app)
+      target.remove()
+    }
+    const B = liveOf(refs.B)
+    expect(lastAim(lookAt, liveOf(refs.A))).toBe(B)
+    expect(lastAim(lookAt, liveOf(refs.C))).toBe(B)
+    expect(lastAim(lookAt, B)).toBe(null)
+    state.speaker = 'A'
+    flushSync()
+    expect(lastAim(lookAt, B)).toBe(liveOf(refs.A))
+    expect(lastAim(lookAt, liveOf(refs.A))).toBe(null)
+    // a speaker who is not a member: everyone looks ahead
+    state.speaker = 'Z'
+    flushSync()
+    for (const k of ['A', 'B', 'C'])
+      expect(lastAim(lookAt, liveOf(refs[k]))).toBe(null)
+    // the speaker leaves while speaking: the others look ahead again
+    state.speaker = 'B'
+    flushSync()
+    expect(lastAim(lookAt, liveOf(refs.A))).toBe(B)
+    state.withB = false
+    flushSync()
+    expect(refs.B).toBe(null)
+    expect(lastAim(lookAt, liveOf(refs.A))).toBe(null)
+    expect(lastAim(lookAt, liveOf(refs.C))).toBe(null)
+    expect(target.querySelectorAll('svg').length).toBe(2)
+    expect(error).not.toHaveBeenCalled()
   })
 })

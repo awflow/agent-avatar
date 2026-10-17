@@ -15,7 +15,15 @@ import {
   vi,
 } from 'vitest'
 import { Avatar, AvatarGroup, type AvatarProps, type AvatarRef } from './index'
-import { CASES, liveSvg, rootId, span, testHat, toSvg } from './test/markup'
+import {
+  CASES,
+  liveSvg,
+  rootId,
+  span,
+  testHat,
+  toSvg,
+  versionOf,
+} from './test/markup'
 
 beforeAll(() => {
   const g = globalThis as any
@@ -114,8 +122,8 @@ describe('hydration', () => {
       test(`${name} animate=${animate} adopts the server svg`, () => {
         const setAttribute = vi.spyOn(Element.prototype, 'setAttribute')
         const svg = animate
-          ? liveSvg(name, { ...opts, id: rootId() })
-          : toSvg(name, { ...opts, id: rootId() })
+          ? liveSvg(name, { ...opts, id: rootId(versionOf(opts)) })
+          : toSvg(name, { ...opts, id: rootId(versionOf(opts)) })
         const props = { name, ...opts, animate }
         const bind = vi.spyOn(Live.prototype as any, 'bind')
         const { host, server, warn, error, ref } = hydrateOver(props, span(svg))
@@ -346,29 +354,39 @@ describe('AvatarGroup', () => {
   }
 
   test('members look at the speaker, the speaker looks ahead', () => {
+    const error = vi.spyOn(console, 'error')
     const lookAt = vi.spyOn(Live.prototype, 'lookAt')
     let a!: AvatarRef
     let b!: AvatarRef
     let c!: AvatarRef
-    type S = { speaker: string | undefined; withC: boolean }
-    const view = show<S>({ speaker: 'b', withC: true }, (s) => (
+    type S = { speaker: string | undefined; withB: boolean }
+    const view = show<S>({ speaker: 'B', withB: true }, (s) => (
       <AvatarGroup speaker={s().speaker}>
-        <Avatar ref={a} name='a' animate />
-        <Avatar ref={b} name='b' animate />
-        <Show when={s().withC}>
-          <Avatar ref={c} name='c' animate />
+        <Avatar ref={a} name='A' animate />
+        <Show when={s().withB}>
+          <Avatar ref={b} name='B' animate />
         </Show>
+        <Avatar ref={c} name='C' animate />
       </AvatarGroup>
     ))
-    expect(lastAim(lookAt, liveOf(a))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(c))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
-    view.set({ speaker: 'a', withC: true })
-    expect(lastAim(lookAt, liveOf(b))).toBe(liveOf(a))
+    const B = liveOf(b)
+    expect(lastAim(lookAt, liveOf(a))).toBe(B)
+    expect(lastAim(lookAt, liveOf(c))).toBe(B)
+    expect(lastAim(lookAt, B)).toBe(null)
+    view.set({ speaker: 'A', withB: true })
+    expect(lastAim(lookAt, B)).toBe(liveOf(a))
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    view.set({ speaker: undefined, withC: false })
+    // a speaker who is not a member: everyone looks ahead
+    view.set({ speaker: 'Z', withB: true })
+    for (const r of [a, b, c]) expect(lastAim(lookAt, liveOf(r))).toBe(null)
+    // the speaker leaves while speaking: the others look ahead again
+    view.set({ speaker: 'B', withB: true })
+    expect(lastAim(lookAt, liveOf(a))).toBe(B)
+    view.set({ speaker: 'B', withB: false })
+    expect(b.getHandle()).toBe(null)
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
+    expect(lastAim(lookAt, liveOf(c))).toBe(null)
+    expect(error).not.toHaveBeenCalled()
   })
 
   test('a renamed member is matched under its new name', () => {

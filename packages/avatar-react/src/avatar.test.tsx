@@ -29,6 +29,7 @@ import {
   test,
   vi,
 } from 'vitest'
+import { PARITY_CASES, versionOf } from '../../avatar/test/parity-cases'
 import { domId } from './avatar'
 import { Avatar, AvatarGroup, type AvatarProps, type AvatarRef } from './index'
 
@@ -83,39 +84,15 @@ const liveSvg = (name: string, opts: Parameters<typeof settle>[1]) => {
   return serialize(draw(who, pose, d))
 }
 
-const CASES = [
-  { name: 'Ada Lovelace', opts: { expression: 'happy' as const } },
-  {
-    name: 'Linh',
-    opts: { expression: 'sad' as const, frame: 'bone' as const },
-  },
-  {
-    name: 'Doan Labs',
-    opts: {
-      expression: 'surprised' as const,
-      eyewear: 'glasses' as const,
-      headwear: 'sprout' as const,
-      neckwear: 'tie' as const,
-      size: 300,
-    },
-  },
-  { name: '東京', opts: { expression: 'curious' as const, square: false } },
-  {
-    name: 'Grace Hopper',
-    opts: {
-      activity: 'thinking' as const,
-      theme: 'bold',
-      headwear: 'antenna' as const,
-      framing: 'full' as const,
-    },
-  },
-]
+const CASES = PARITY_CASES
 
 describe('SSR parity with toSvg', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       const html = renderToString(<Avatar name={name} {...opts} />)
-      expect(tree(html)).toBe(tree(toSvg(name, { ...opts, id: rootId() })))
+      expect(tree(html)).toBe(
+        tree(toSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
+      )
     })
   }
 
@@ -191,7 +168,9 @@ describe('animated SSR emits the live tree', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       const html = renderToString(<Avatar name={name} {...opts} animate />)
-      expect(tree(html)).toBe(tree(liveSvg(name, { ...opts, id: rootId() })))
+      expect(tree(html)).toBe(
+        tree(liveSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
+      )
     })
   }
 })
@@ -480,27 +459,39 @@ describe('AvatarGroup', () => {
   }
 
   test('members look at the speaker, the speaker looks ahead', () => {
+    const errors = vi.spyOn(console, 'error')
     const lookAt = vi.spyOn(Live.prototype, 'lookAt')
     const a = createRef<AvatarRef>()
     const b = createRef<AvatarRef>()
     const c = createRef<AvatarRef>()
-    const group = (speaker: string | undefined, withC = true) => (
+    const group = (speaker: string | undefined, withB = true) => (
       <AvatarGroup speaker={speaker}>
-        <Avatar ref={a} name='a' animate />
-        <Avatar ref={b} name='b' animate />
-        {withC ? <Avatar ref={c} name='c' animate /> : null}
+        <Avatar ref={a} name='A' animate />
+        {withB ? <Avatar ref={b} name='B' animate /> : null}
+        <Avatar ref={c} name='C' animate />
       </AvatarGroup>
     )
-    const view = show(group('b'))
+    const view = show(group('B'))
+    const B = liveOf(b)
+    expect(lastAim(lookAt, liveOf(a))).toBe(B)
+    expect(lastAim(lookAt, liveOf(c))).toBe(B)
+    expect(lastAim(lookAt, B)).toBe(null)
+    view.render(group('A'))
+    expect(lastAim(lookAt, B)).toBe(liveOf(a))
+    expect(lastAim(lookAt, liveOf(a))).toBe(null)
+    // a speaker who is not a member: everyone looks ahead
+    view.render(group('Z'))
+    for (const r of [a, b, c]) expect(lastAim(lookAt, liveOf(r))).toBe(null)
+    // the speaker leaves while speaking: the others look ahead again
+    view.render(group('B'))
     expect(lastAim(lookAt, liveOf(a))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(c))).toBe(liveOf(b))
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
-    view.render(group('a'))
-    expect(lastAim(lookAt, liveOf(b))).toBe(liveOf(a))
+    view.render(group('B', false))
+    expect(b.current).toBe(null)
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    view.render(group(undefined, false))
-    expect(lastAim(lookAt, liveOf(a))).toBe(null)
-    expect(lastAim(lookAt, liveOf(b))).toBe(null)
+    expect(lastAim(lookAt, liveOf(c))).toBe(null)
+    view.render(group(undefined))
+    for (const r of [a, b, c]) expect(lastAim(lookAt, liveOf(r))).toBe(null)
+    expect(errors).not.toHaveBeenCalled()
   })
 
   test('renders no wrapper element', () => {

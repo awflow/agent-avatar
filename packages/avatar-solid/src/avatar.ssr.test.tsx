@@ -16,6 +16,7 @@ import {
   span,
   testHat,
   toSvg,
+  versionOf,
 } from './test/markup'
 
 const ssr = (props: AvatarProps) => renderToString(() => <Avatar {...props} />)
@@ -34,7 +35,7 @@ describe('static SSR is exactly toSvg in a display:contents span', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       expect(ssr({ name, ...opts })).toBe(
-        span(toSvg(name, { ...opts, id: rootId() })),
+        span(toSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
       )
     })
   }
@@ -96,7 +97,7 @@ describe('animated SSR emits the live tree', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       expect(ssr({ name, ...opts, animate: true })).toBe(
-        span(liveSvg(name, { ...opts, id: rootId() })),
+        span(liveSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
       )
     })
   }
