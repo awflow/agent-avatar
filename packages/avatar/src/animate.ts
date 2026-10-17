@@ -277,8 +277,12 @@ const ALL = new Set<Live>()
 const LIVE = new Set<Live>()
 let raf = 0
 let last = 0
+/* the longest step a frame may take, in seconds: a stalled tab or a caller's
+ * huge dt never flings the springs */
+const MAX_DT = 0.05
+
 function tick(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000)
+  const dt = Math.min(MAX_DT, (now - last) / 1000)
   last = now
   if (!document.hidden) {
     // every layout read before any write: one layout a frame, not one a face
@@ -714,7 +718,10 @@ export class Live {
     this.bumps.push({ ch, amt, t0: this.clock, a, h, r })
   }
 
-  step(dt: number) {
+  step(elapsed: number) {
+    // clamped here too, so a direct caller gets the same bounded step; the
+    // swing below reads the same clamped dt
+    const dt = Number.isFinite(elapsed) ? clamp(elapsed, 0, MAX_DT) : 0
     this.clock += dt
     const t = this.clock
     const age = t - this.enteredAt

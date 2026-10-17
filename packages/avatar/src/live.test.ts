@@ -269,6 +269,25 @@ describe('accessory physics', () => {
     expect(Math.abs(rig.swing.angle)).toBeLessThan(0.5)
   })
 
+  test('a huge dt is clamped: everything stays finite and bounded', () => {
+    const { live, rig, svg } = mount('Linh', {
+      headwear: 'sprout',
+      expression: 'excited',
+    } as any)
+    live.react('hop')
+    for (let i = 0; i < 5; i++) live.step(10)
+    expect(rig.clock).toBeCloseTo(0.25, 9)
+    for (const c of Object.keys(rig.vel)) {
+      expect(Number.isFinite(rig.val[c])).toBe(true)
+      expect(Number.isFinite(rig.vel[c])).toBe(true)
+      expect(Math.abs(rig.val[c] - rig.base[c])).toBeLessThan(10)
+    }
+    expect(Number.isFinite(rig.swing.angle)).toBe(true)
+    expect(Math.abs(rig.swing.angle)).toBeLessThanOrEqual(28)
+    expect(svg.outerHTML).not.toMatch(/NaN|Infinity/)
+    live.destroy()
+  })
+
   test('reduced motion keeps wob at 0', () => {
     const { live, rig } = mount('Linh', {}, true)
     live.react('hop')
