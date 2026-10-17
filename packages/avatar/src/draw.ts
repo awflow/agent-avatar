@@ -26,6 +26,7 @@ import {
 } from './tables'
 import { type Ink, THEMES, type Theme } from './themes'
 import { WEAR, type WearCtx, type WearSlot } from './wardrobe/context'
+import { PROPS, type PropName } from './wardrobe/props'
 
 export { clamp, depth, seat, smooth } from './geom'
 
@@ -115,7 +116,12 @@ export type DrawOptions = {
 }
 
 /** `key` (the tidied name) seeds the speckle motif. */
-export type Drawable = Axes & { persona: Persona; key?: string }
+export type Drawable = Axes & {
+  persona: Persona
+  key?: string
+  /** The held prop, by name; never hashed. */
+  prop?: string
+}
 
 /* The frame: viewBox -30 -30 400 400, the floor on its bottom edge. */
 export const VB = [-30, -30, 400, 400] as const
@@ -1414,8 +1420,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(0.6, -0.5),
           filter: riso ? `url(#${id}-pB)` : undefined,
         },
-        // the LOD gate: wardrobe from tier 1, and the prop (Plan 3) joins
-        // here from tier 2
+        // the LOD gate: wardrobe from tier 1 (the prop, from tier 2, is
+        // drawn in frame space after the body)
         [
           ...eyes,
           ...(tier >= 2 ? brows : []),
@@ -1473,11 +1479,27 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   }
   const fxLayer = n('g', 'fx', {}, pool)
 
+  // The held prop: frame space, after the body and under the fx, so a
+  // sparkle or a zzz still reads over it. Hidden below 44px (tier 2). With
+  // no prop there is no layer at all, so peek@1's live tree holds; with one,
+  // the layer is there at every size and a static tree prunes it when empty.
+  const holds = !!who.prop && Object.hasOwn(PROPS, who.prop)
+  const propLayer = holds
+    ? [
+        n(
+          'g',
+          'prop',
+          {},
+          tier >= 2 ? PROPS[who.prop as PropName].draw(ctx) : [],
+        ),
+      ]
+    : []
+
   // full framing: the whole body plus hat room, centred and scaled down; the
-  // fx ride inside the same transform so they follow the body
+  // prop and the fx ride inside the same transform so they follow the body
   let framed = av
   if (full) {
-    const body: Node[] = [av, fxLayer]
+    const body: Node[] = [av, ...propLayer, fxLayer]
     const c = (top - HEADROOM + sh.bottom) / 2 + baseY
     // clay rests on a soft contact shadow under the body's bottom
     if (T.shading === 'clay')
@@ -1523,7 +1545,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     scene.push(n('g', 'lattice', { fill: dark ? INK.bone : INK.ink }, dots))
   }
   scene.push(framed)
-  if (!full) scene.push(fxLayer)
+  if (!full) scene.push(...propLayer, fxLayer)
   if (grainy)
     scene.push(
       n('rect', 'grain', {

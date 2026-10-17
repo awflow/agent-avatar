@@ -194,9 +194,9 @@ describe('wardrobe z-order', () => {
   /*
    * Inside the body group: eyes, brows, eyewear, headwear, neckwear. After
    * the body group: the layers that live outside it, in paint order. The
-   * props task appends its layer to AFTER_BODY.
+   * held prop sits under the fx, so overlays read over it.
    */
-  const AFTER_BODY = ['fx']
+  const AFTER_BODY = ['prop', 'fx']
   // live, so the after-body layers keep their nodes when empty
   const live = (name: string, o: Record<string, unknown>) => {
     const { who, pose, opts } = worn(name, o)
@@ -222,6 +222,7 @@ describe('wardrobe z-order', () => {
       headwear: 'headphones',
       neckwear: 'scarf',
       brows: 'arch',
+      prop: 'bulb',
     })
     ascending(
       order(tree, [
@@ -242,6 +243,7 @@ describe('wardrobe z-order', () => {
       headwear: 'cap',
       neckwear: 'tie',
       brows: 'arch',
+      prop: 'coffee',
     })
     ascending(
       order(tree, [
