@@ -76,3 +76,19 @@ describe('export conditions', () => {
       })
     }
 })
+
+describe('manifests', () => {
+  test('every package but the element is free of side effects', () => {
+    for (const dir of Object.keys(ENTRIES)) {
+      const pkg = JSON.parse(
+        readFileSync(join(packages, dir, 'package.json'), 'utf8'),
+      )
+      // the element registers its tags on import: it lists its own files
+      const expected =
+        dir === 'avatar-element' ? ['./dist/index.js', './src/index.ts'] : false
+      expect(`${dir} ${JSON.stringify(pkg.sideEffects)}`).toBe(
+        `${dir} ${JSON.stringify(expected)}`,
+      )
+    }
+  })
+})

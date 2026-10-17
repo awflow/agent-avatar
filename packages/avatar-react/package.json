@@ -2,6 +2,7 @@
   "name": "@awflow/avatar-react",
   "version": "0.0.0",
   "type": "module",
+  "sideEffects": false,
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
