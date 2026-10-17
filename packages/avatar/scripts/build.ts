@@ -9,7 +9,8 @@
  * `--outdir <dir>` builds somewhere else than `dist` (the smoke test uses it).
  */
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { relative, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
+import { assertCode, staged } from './stage'
 
 const at = process.argv.indexOf('--outdir')
 const outdir = at > 0 && process.argv[at + 1] ? process.argv[at + 1]! : 'dist'
@@ -17,30 +18,32 @@ const outdir = at > 0 && process.argv[at + 1] ? process.argv[at + 1]! : 'dist'
 // stale chunks from an earlier build would ship otherwise
 await rm(outdir, { recursive: true, force: true })
 
-const result = await Bun.build({
-  entrypoints: [
-    'src/index.ts',
-    'src/svg.ts',
-    'src/identity.ts',
-    'src/adapter.ts',
-    'src/compat.ts',
-    'src/ai.ts',
-  ],
-  root: 'src',
-  outdir,
-  splitting: true,
-  target: 'browser',
-  format: 'esm',
-  // Bun would inline its own NODE_ENV here and leave development warnings
-  // on (or off) for good. Kept as a literal, the consumer's bundler or
-  // runtime decides, as with any library.
-  define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
-  naming: { entry: '[dir]/[name].[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
-})
+const ENTRIES = ['index', 'svg', 'identity', 'adapter', 'compat', 'ai']
+// bundled from a staged copy: see stage.ts
+const out = resolve(outdir)
+const result = await staged(() =>
+  Bun.build({
+    entrypoints: ENTRIES.map((e) => `src/${e}.ts`),
+    root: 'src',
+    outdir: out,
+    splitting: true,
+    target: 'browser',
+    format: 'esm',
+    // Bun would inline its own NODE_ENV here and leave development warnings
+    // on (or off) for good. Kept as a literal, the consumer's bundler or
+    // runtime decides, as with any library.
+    define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
+    naming: {
+      entry: '[dir]/[name].[ext]',
+      chunk: 'chunks/[name]-[hash].[ext]',
+    },
+  }),
+)
 if (!result.success) {
   for (const log of result.logs) console.error(log)
   process.exit(1)
 }
+await assertCode(ENTRIES.map((e) => join(outdir, `${e}.js`)))
 
 const declarations = Bun.spawn(
   ['bunx', 'tsc', '-p', 'tsconfig.build.json', '--outDir', outdir],

@@ -4,25 +4,31 @@
  */
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { assertCode, staged } from '../../avatar/scripts/stage'
 
 const outdir = 'dist'
 await rm(outdir, { recursive: true, force: true })
 
-const result = await Bun.build({
-  entrypoints: ['src/index.ts'],
-  root: 'src',
-  outdir,
-  target: 'browser',
-  format: 'esm',
-  packages: 'external',
-  // a client module for React Server Components frameworks
-  banner: "'use client';",
-  define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
-})
+// bundled from a staged copy: see packages/avatar/scripts/stage.ts
+const out = resolve(outdir)
+const result = await staged(() =>
+  Bun.build({
+    entrypoints: ['src/index.ts'],
+    root: 'src',
+    outdir: out,
+    target: 'browser',
+    format: 'esm',
+    packages: 'external',
+    // a client module for React Server Components frameworks
+    banner: "'use client';",
+    define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
+  }),
+)
 if (!result.success) {
   for (const log of result.logs) console.error(log)
   process.exit(1)
 }
+await assertCode([`${outdir}/index.js`])
 
 const entry = await Bun.file(`${outdir}/index.js`).text()
 if (!/^['"]use client['"]/.test(entry)) {
