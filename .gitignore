@@ -14,3 +14,4 @@ scratch/
 graft/
 .ignore
 .svelte-kit
+.smoke-dist-*/

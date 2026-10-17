@@ -18,6 +18,7 @@ import { seat } from './geom'
 import { LISTS } from './identity'
 import { el, type Node } from './node'
 import type { SwingSpec } from './physics'
+import { registry } from './registry'
 import { FACES, type FaceGeom, PROPS } from './tables'
 import {
   registerTheme,
@@ -153,10 +154,9 @@ export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
 
 /* the registry: one namespace for every kind but themes, which keep theirs */
 
-const names = new Map<string, Exclude<Plugin, ThemePlugin>>()
-let list: Plugin[] = []
-let frozen: ReadonlyArray<Plugin> = Object.freeze([])
-const warned = new Set<Plugin>()
+// the state lives in the shared registry (registry.ts), so every entry
+// point and every copy of the package on a page sees the same plugins
+const names = () => registry().names
 
 function builtIn(p: Exclude<Plugin, ThemePlugin>): string | null {
   switch (p.kind) {
@@ -182,11 +182,12 @@ const KINDS = new Set(['accessory', 'prop', 'fx', 'shape', 'theme'])
  */
 export function registerPlugins(items: Plugin[]): void {
   if (!Array.isArray(items)) throw new Error('registerPlugins takes an array')
-  const staged = new Map(names)
+  const reg = registry()
+  const staged = new Map(reg.names)
   const themes = new Map<string, Theme>()
   const add: Plugin[] = []
   for (const p of items) {
-    if (list.includes(p) || add.includes(p)) continue
+    if (reg.list.includes(p) || add.includes(p)) continue
     if (!p || !KINDS.has(p.kind))
       throw new Error(
         'a plugin needs a kind: accessory, prop, fx, shape or theme',
@@ -222,23 +223,25 @@ export function registerPlugins(items: Plugin[]): void {
     add.push(p)
   }
   for (const p of add) if (p.kind === 'theme') registerTheme(p.theme)
-  names.clear()
-  for (const [k, v] of staged) names.set(k, v)
-  list = [...list, ...add]
-  frozen = Object.freeze([...list])
+  reg.names.clear()
+  for (const [k, v] of staged) reg.names.set(k, v)
+  reg.list = [...reg.list, ...add]
+  reg.frozen = Object.freeze([...reg.list])
 }
 
 /** Every registered plugin, in registration order. Read-only. */
 export function plugins(): ReadonlyArray<Plugin> {
-  return frozen
+  return registry().frozen
 }
 
 /** Test-only (not on the package entry): forget every plugin and theme. */
 export function resetPluginsForTests() {
-  names.clear()
-  list = []
-  frozen = Object.freeze([])
-  warned.clear()
+  const reg = registry()
+  reg.names.clear()
+  reg.list = []
+  reg.frozen = Object.freeze([])
+  reg.warned.clear()
+  reg.notes.clear()
   resetThemesForTests()
 }
 
@@ -248,22 +251,22 @@ export function accessoryOf(
   slot: WearSlot,
   name: unknown,
 ): AccessoryPlugin | undefined {
-  const p = typeof name === 'string' ? names.get(name) : undefined
+  const p = typeof name === 'string' ? names().get(name) : undefined
   return p?.kind === 'accessory' && p.slot === slot ? p : undefined
 }
 
 export function propOf(name: unknown): PropPlugin | undefined {
-  const p = typeof name === 'string' ? names.get(name) : undefined
+  const p = typeof name === 'string' ? names().get(name) : undefined
   return p?.kind === 'prop' ? p : undefined
 }
 
 export function fxOf(name: unknown): FxPlugin | undefined {
-  const p = typeof name === 'string' ? names.get(name) : undefined
+  const p = typeof name === 'string' ? names().get(name) : undefined
   return p?.kind === 'fx' ? p : undefined
 }
 
 export function shapeOf(name: unknown): ShapePlugin | undefined {
-  const p = typeof name === 'string' ? names.get(name) : undefined
+  const p = typeof name === 'string' ? names().get(name) : undefined
   return p?.kind === 'shape' ? p : undefined
 }
 
@@ -275,6 +278,7 @@ export function geomOf(face: string): FaceGeom {
 }
 
 function skip(p: Plugin, why: unknown) {
+  const warned = registry().warned
   if (warned.has(p)) return
   warned.add(p)
   const name = p.kind === 'theme' ? p.theme.name : p.name

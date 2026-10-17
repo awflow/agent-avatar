@@ -5,6 +5,7 @@
  * output without a theme stays byte-identical to peek@1.
  */
 
+import { registry } from './registry'
 import { COLORS, type Color, INK } from './tables'
 
 export type Ink = { body: string; deep: string }
@@ -181,9 +182,10 @@ export const THEMES: Record<'soft' | 'bold' | 'mono' | 'neon' | 'clay', Theme> =
   { soft, bold, mono, neon, clay }
 
 const BUILT_IN: ReadonlySet<string> = new Set(Object.keys(THEMES))
-const registry = new Map<string, Theme>(Object.entries(THEMES))
-// what each custom name was registered from, so the same input twice is a no-op
-const sources = new Map<string, Theme>()
+// custom themes live in the shared registry (registry.ts), with what each
+// name was registered from, so the same input twice is a no-op
+const custom = () => registry().themes
+const sources = () => registry().sources
 
 /** A theme as a plugin: `registerPlugins([{ kind: 'theme', theme }])`. */
 export type ThemePlugin = { kind: 'theme'; theme: Theme }
@@ -224,13 +226,13 @@ export function registerTheme(t: Theme, check = false): Theme {
   const name = t?.name
   if (typeof name === 'string' && BUILT_IN.has(name))
     throw new Error(`"${name}" is a built-in theme and cannot be replaced`)
-  const had = typeof name === 'string' ? registry.get(name) : undefined
-  if (had && (sources.get(name) === t || had === t)) return had
+  const had = typeof name === 'string' ? custom().get(name) : undefined
+  if (had && (sources().get(name) === t || had === t)) return had
   if (had) throw new Error(`theme "${name}" is taken by another theme`)
   const out = normalise(t)
   if (!check) {
-    registry.set(name, out)
-    sources.set(name, t)
+    custom().set(name, out)
+    sources().set(name, t)
   }
   return out
 }
@@ -253,16 +255,18 @@ export function defineTheme(t: Theme): Theme & ThemePlugin {
 
 /** Test-only: forget every custom theme. */
 export function resetThemesForTests() {
-  for (const name of sources.keys()) registry.delete(name)
-  sources.clear()
+  custom().clear()
+  sources().clear()
 }
 
 /** A theme by name; unknown or missing is soft. */
 export function themeOf(name?: string): Theme {
-  return (name !== undefined && registry.get(name)) || soft
+  if (name === undefined) return soft
+  if (Object.hasOwn(THEMES, name)) return THEMES[name as keyof typeof THEMES]
+  return custom().get(name) || soft
 }
 
 /** Every theme name, built-ins first, then custom ones in registration order. */
 export function themeNames(): string[] {
-  return [...registry.keys()]
+  return [...BUILT_IN, ...custom().keys()]
 }
