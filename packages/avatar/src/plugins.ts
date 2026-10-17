@@ -6,6 +6,11 @@
  * registered. Built-in names cannot be replaced; a custom name registered
  * again from a fresh object of the same kind replaces the old one (HMR).
  *
+ * Server rendering: register the same plugins on the server and on the
+ * client, before the first render. The live avatar's first paint must equal
+ * the server frame; an override naming a plugin one side never registered
+ * draws the name's own pick there instead (warned once in development).
+ *
  * Every plugin drawing lands in one keyed group, `plugin.<name>`, with its
  * own nodes under `plugin.<name>.*`. A draw that throws or yields non-finite
  * numbers is skipped for that render and reported once per plugin; the group

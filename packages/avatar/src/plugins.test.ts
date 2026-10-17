@@ -195,6 +195,48 @@ describe('registerPlugins', () => {
   })
 })
 
+describe('an override nobody registered', () => {
+  test('warns once per axis and value in development, never for known names', () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      registerPlugins([catEars])
+      for (let i = 0; i < 3; i++) {
+        toSvg('Linh', { headwear: 'phantom-hat' })
+        toSvg('Linh', { prop: 'phantom-hat' })
+      }
+      expect(warn).toHaveBeenCalledTimes(2)
+      expect(String(warn.mock.calls[0]![0])).toContain('headwear')
+      expect(String(warn.mock.calls[0]![0])).toContain('phantom-hat')
+      expect(String(warn.mock.calls[1]![0])).toContain('prop')
+      // built-ins, registered plugins, none and unset never warn
+      toSvg('Linh', {
+        headwear: 'cat-ears',
+        eyewear: 'monocle',
+        neckwear: 'none',
+        shape: 'blob',
+        theme: 'neon',
+        fx: 'zzz',
+        prop: 'coffee',
+      })
+      toSvg('Linh', { face: 'freckles' })
+      toSvg('Linh', { face: 'blob', version: 1 })
+      expect(warn).toHaveBeenCalledTimes(2)
+      // every plugin-capable axis is covered
+      toSvg('Linh', {
+        shape: 'phantom',
+        eyewear: 'phantom',
+        neckwear: 'phantom',
+        decor: 'phantom',
+        theme: 'phantom',
+        fx: 'phantom',
+      })
+      expect(warn).toHaveBeenCalledTimes(8)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+})
+
 describe('a failing plugin', () => {
   test('a throwing draw is skipped, the SVG stays valid, one warning', () => {
     const warn = spyOn(console, 'warn').mockImplementation(() => {})

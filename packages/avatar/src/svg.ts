@@ -16,8 +16,10 @@ import {
   type Ring,
   restPose,
 } from './draw'
+import { FX_KINDS } from './fx'
 import { type Axes, fnv1a, type Identity, identify, LISTS } from './identity'
-import { accessoryOf, propOf, shapeOf } from './plugins'
+import { accessoryOf, fxOf, propOf, shapeOf } from './plugins'
+import { dev, note } from './registry'
 import {
   COLORS,
   type Color,
@@ -31,7 +33,7 @@ import {
   PROPS,
   type Prop,
 } from './tables'
-import { deepOf, type Ink, parseHex, themeOf } from './themes'
+import { deepOf, type Ink, parseHex, THEMES, themeOf } from './themes'
 import type { WearSlot } from './wardrobe/context'
 
 // a built-in name, or a registered plugin's (never hashed)
@@ -110,6 +112,50 @@ const shapeOr = (v: unknown, base: Face) =>
 const clamp01 = (v: number) =>
   Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
 
+/**
+ * In development, one warning per axis and value for an override that names
+ * neither a built-in nor a registered plugin: most often a plugin the server
+ * (or this bundle) never registered, which then renders what the name picked
+ * and lets a server frame and its first live paint disagree.
+ */
+function unknownOverrides(o: AvatarOptions, v1: boolean) {
+  const known = (axis: string, v: unknown): boolean => {
+    switch (axis) {
+      case 'shape':
+        return !!shapeOf(v) || (LISTS.face as readonly unknown[]).includes(v)
+      case 'prop':
+        return !!propOf(v) || (PROPS as readonly unknown[]).includes(v)
+      case 'theme':
+        return (
+          themeOf(v as string).name === v || Object.hasOwn(THEMES, v as string)
+        )
+      case 'fx':
+        return !!fxOf(v) || (FX_KINDS as readonly unknown[]).includes(v)
+      default:
+        return (
+          !!accessoryOf(axis as WearSlot, v) ||
+          (LISTS[axis as WearSlot] as readonly unknown[]).includes(v)
+        )
+    }
+  }
+  const asked: [string, unknown][] = [
+    ['shape', o.shape ?? (v1 ? o.face : undefined)],
+    ['eyewear', o.eyewear],
+    ['headwear', o.headwear],
+    ['neckwear', o.neckwear],
+    ['decor', v1 ? o.decor : (o.face ?? o.decor)],
+    ['prop', o.prop],
+    ['theme', o.theme],
+    ['fx', o.fx],
+  ]
+  for (const [axis, v] of asked)
+    if (typeof v === 'string' && !known(axis, v))
+      note(
+        `override:${axis}:${v}`,
+        `${axis} "${v}" is neither built in nor registered, so the name's own pick is drawn. Register the same plugins on the server and the client before the first render.`,
+      )
+}
+
 const STYLES = { 'peek@1': 1, 'peek@2': 2 } as const
 
 /**
@@ -129,6 +175,7 @@ export function settle(
   const base = identify(name, { version, dress: o.dress })
   // under v1 `face` is the silhouette (Peek's meaning); from v2 it is decor
   const v1 = base.version < 2
+  if (dev()) unknownOverrides(o, v1)
   const theme = themeOf(o.theme)
   const hex = typeof o.color === 'string' ? parseHex(o.color) : null
   const ink: Ink | undefined = hex
