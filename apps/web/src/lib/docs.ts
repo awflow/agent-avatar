@@ -217,6 +217,15 @@ export function Call({ speaker }: { speaker: string }) {
           '`defineAvatarElements(prefix)` registers the tags under another prefix. Importing in Node defines nothing.',
         ],
       },
+      "The bare `import '@awflow/avatar-element'` needs a bundler or an import map. Without either, import the module from a CDN:",
+      {
+        code: `<script type="module">
+  import 'https://cdn.jsdelivr.net/npm/@awflow/avatar-element@1/+esm'
+</script>
+
+<awf-avatar name="Ada" animate></awf-avatar>`,
+        lang: 'html',
+      },
       {
         code: `<awf-avatar-group speaker="Ada">
   <awf-avatar name="Ada" animate></awf-avatar>
@@ -347,7 +356,7 @@ agent.react('nod')`,
             '`@awflow/avatar`',
             '`toSvg` `mount` `attach` `frames` `identify` `defineTheme` `defineAccessory` `defineProp` `defineFx` `defineShape` `registerPlugins` `THEMES` `LISTS` `REACTIONS` `ACTIVITIES` `EXPRESSIONS` `FRAME_LIMITS`',
           ],
-          ['`@awflow/avatar/svg`', '`toSvg` alone, no rig'],
+          ['`@awflow/avatar/svg`', '`toSvg` `settle` `serialize`, no rig'],
           ['`@awflow/avatar/identity`', '`identify` alone'],
           ['`@awflow/avatar/ai`', '`lookSchema` `lookPrompt` `parseLook`'],
           ['`@awflow/avatar/compat`', '`fromLegacy` `lookForRole` `ARIA`'],

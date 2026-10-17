@@ -265,7 +265,8 @@ function BlockView({ block: b }: { block: Block }) {
     <ul className='faces'>
       {b.faces.map(({ label, ...props }, i) => (
         <li key={i}>
-          <Avatar {...props} size={size} />
+          {/* a visible label names it: the svg stays quiet */}
+          <Avatar {...props} size={size} title={label ? false : props.title} />
           {label ? <span>{label}</span> : null}
         </li>
       ))}

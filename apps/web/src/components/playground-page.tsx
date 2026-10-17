@@ -104,6 +104,10 @@ function shuffle(s: State): State {
   return next
 }
 
+const LEGEND: Partial<Record<Key, string>> = { decor: 'Face' }
+
+/* one single-choice group: native radios dressed as pills, so arrows,
+ * roving focus and the group name come from the browser */
 function Row({
   label,
   k,
@@ -116,22 +120,27 @@ function Row({
   set: (k: Key, v: string) => void
 }) {
   return (
-    <fieldset className='ctl' aria-label={label || k}>
-      <span className='lbl' aria-hidden={!label}>
-        {label}
-      </span>
-      <div className='pills'>
-        {CONTROLS[k].map((v) => (
-          <button
-            key={v}
-            type='button'
-            className='pill'
-            aria-pressed={state[k] === v}
-            onClick={() => set(k, v)}
-          >
-            {v}
-          </button>
-        ))}
+    <fieldset className='ctl-set'>
+      <legend className='sr-only'>{LEGEND[k] ?? label}</legend>
+      <div className='ctl'>
+        <span className='lbl' aria-hidden='true'>
+          {label}
+        </span>
+        <div className='pills'>
+          {CONTROLS[k].map((v) => (
+            <label key={v} className='pill-radio'>
+              <input
+                type='radio'
+                className='sr-only'
+                name={`pg-${k}`}
+                value={v}
+                checked={state[k] === v}
+                onChange={() => set(k, v)}
+              />
+              <span className='pill'>{v}</span>
+            </label>
+          ))}
+        </div>
       </div>
     </fieldset>
   )
@@ -226,6 +235,10 @@ export function PlaygroundPage() {
           <Row label='Shape' k='shape' state={state} set={set} />
           <Row label='Expression' k='expression' state={state} set={set} />
           <Row label='Activity' k='activity' state={state} set={set} />
+          <p className='hint'>
+            Wardrobe: <strong>auto</strong> lets the name pick, so it only
+            differs from <strong>none</strong> when Dress is on.
+          </p>
           <Row label='Headwear' k='headwear' state={state} set={set} />
           <Row label='Eyewear' k='eyewear' state={state} set={set} />
           <Row label='Neck · face' k='neckwear' state={state} set={set} />

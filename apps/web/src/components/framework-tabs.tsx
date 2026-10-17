@@ -42,8 +42,28 @@ export function FrameworkTabs({
             id={`${id}-${slug(f)}`}
             aria-selected={f === fw}
             aria-controls={`${id}-panel`}
+            tabIndex={f === fw ? 0 : -1}
             className={dark ? 'tab tab-dark' : 'tab'}
             onClick={() => setFw(f)}
+            onKeyDown={(e) => {
+              const i = FRAMEWORKS.indexOf(f)
+              const n = FRAMEWORKS.length
+              const to =
+                e.key === 'ArrowRight'
+                  ? (i + 1) % n
+                  : e.key === 'ArrowLeft'
+                    ? (i - 1 + n) % n
+                    : e.key === 'Home'
+                      ? 0
+                      : e.key === 'End'
+                        ? n - 1
+                        : -1
+              if (to < 0) return
+              e.preventDefault()
+              const next = FRAMEWORKS[to]!
+              setFw(next)
+              document.getElementById(`${id}-${slug(next)}`)?.focus()
+            }}
           >
             {f}
           </button>
@@ -51,6 +71,7 @@ export function FrameworkTabs({
       </div>
       <div
         role='tabpanel'
+        tabIndex={-1}
         id={`${id}-panel`}
         aria-labelledby={`${id}-${slug(fw)}`}
       >

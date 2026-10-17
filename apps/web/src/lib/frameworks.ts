@@ -125,7 +125,9 @@ export function Face() {
   return <${join('Avatar', `name=${q(name)}`, jsxAttrs(look))} />
 }`
     case 'Web Component':
-      return `<script type="module">
+      return `<!-- with a bundler or an import map; without one, import
+     https://cdn.jsdelivr.net/npm/@awflow/avatar-element@1/+esm -->
+<script type="module">
   import '@awflow/avatar-element'
 </script>
 
