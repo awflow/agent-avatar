@@ -9,7 +9,7 @@
  * what is invisible (opacity 0) to stay small.
  */
 
-import type { Axes, Persona } from './identity'
+import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import {
   ACCESSORY_INK,
   type Channel,
@@ -70,7 +70,8 @@ export type DrawOptions = {
   live?: boolean
 }
 
-export type Drawable = Axes & { persona: Persona }
+/** `key` (the tidied name) seeds the speckle motif. */
+export type Drawable = Axes & { persona: Persona; key?: string }
 
 /* The frame: viewBox -30 -30 400 400, the floor on its bottom edge. */
 export const VB = [-30, -30, 400, 400] as const
@@ -243,6 +244,220 @@ function prune(node: Node): Node | null {
   return { ...node, children }
 }
 
+/*
+ * Motif, shading and outline: what the theme paints over and around the
+ * body. They are identity and theme level, never pose level, so a live tree
+ * keeps the same nodes, and they sit in the body's group so they follow its
+ * transform. The motif and shading are clipped to the body (`${id}-b`); the
+ * outline rides on top, its glow behind. Patterns come from the 100-unit
+ * mock, scaled by 3.4 into the frame.
+ */
+const U = 3.4
+const WHITE = '#FFFFFF'
+function skinOf(
+  who: Drawable,
+  sh: FaceGeom,
+  slot: Ink,
+  T: Theme,
+  id: string,
+  defs: Node[],
+): { under: Node[]; over: Node[] } {
+  const under: Node[] = []
+  const over: Node[] = []
+  const motif = who.motif
+  const shading = T.shading
+  const outline = T.outline
+  if (motif === 'plain' && shading === 'flat' && !outline)
+    return { under, over }
+
+  const shapeOf = (key: string, attrs: Attrs) =>
+    'd' in sh.body
+      ? n('path', key, { d: sh.body.d, ...attrs })
+      : n('circle', key, {
+          cx: sh.body.circle[0],
+          cy: sh.body.circle[1],
+          r: sh.body.circle[2],
+          ...attrs,
+        })
+  // a rounded body's own stroke widens its silhouette by half its width
+  const rim = 'd' in sh.body ? (sh.body.stroke ?? 0) : 0
+  // the body's vertical extent and half-width at the eye line
+  const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
+  const bot = sh.bottom
+  const h = bot - top
+  const mid = (top + bot) / 2
+  const side = sh.side
+  const clip = `url(#${id}-b)`
+
+  if (motif !== 'plain' || shading !== 'flat')
+    defs.push(
+      n('clipPath', 'body.clip', { id: `${id}-b` }, [
+        shapeOf('body.clip.shape', {}),
+        // a clip ignores strokes, so a rounded body's rim is covered by 16
+        // copies nudged around a circle of the rim's half width
+        ...(rim
+          ? Array.from({ length: 16 }, (_, i) =>
+              shapeOf(`body.clip.rim${i}`, {
+                transform: `translate(${f2((rim / 2) * Math.cos(i * 22.5 * RAD))} ${f2((rim / 2) * Math.sin(i * 22.5 * RAD))})`,
+              }),
+            )
+          : []),
+      ]),
+    )
+
+  // the motif: one path each, so a pattern costs one node
+  if (motif !== 'plain') {
+    const ink = T.motifInk(slot)
+    let d = ''
+    let paint: Attrs = { fill: ink }
+    let group: Attrs = { opacity: T.motifOpacity }
+    if (motif === 'dots') {
+      const s = 12 * U
+      const r = 1.9 * U
+      for (let j = 0; j * s <= 350; j++)
+        for (let i = -1; i * s <= 350; i++) {
+          const cx = i * s + (j % 2 ? s / 2 : 0)
+          const cy = j * s
+          d += `M${f2(cx - r)} ${f2(cy)}a${f2(r)} ${f2(r)} 0 1 0 ${f2(2 * r)} 0a${f2(r)} ${f2(r)} 0 1 0 ${f2(-2 * r)} 0`
+        }
+    } else if (motif === 'stripes') {
+      const s = 10 * U
+      for (let x = -170; x < 510; x += s)
+        d += `M${f2(x)} -170h${f2(4 * U)}v680h${f2(-4 * U)}Z`
+      paint = { ...paint, transform: 'rotate(45 170 170)' }
+    } else if (motif === 'waves') {
+      const s = 10 * U
+      for (let y = s / 2; y < 360; y += s) {
+        d += `M${f2(-s)} ${f2(y)}`
+        for (let x = -s; x < 350; x += s)
+          d += `q${f2(s / 2)} ${f2(-s / 2)} ${f2(s)} 0`
+      }
+      paint = {
+        fill: 'none',
+        stroke: ink,
+        'stroke-width': f2(2 * U),
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+      }
+    } else if (motif === 'grid') {
+      const s = 12 * U
+      for (let v = s / 2; v < 350; v += s)
+        d += `M${f2(v)} -10V350M-10 ${f2(v)}H350`
+      paint = { fill: 'none', stroke: ink, 'stroke-width': f2(1.2 * U) }
+    } else if (motif === 'speckle') {
+      const rnd = mulberry32(fnv1a(`${who.key ?? ''}sp`))
+      for (let i = 0; i < 34; i++) {
+        const cx = rnd() * 340
+        const cy = top + rnd() * h
+        const r = (0.9 + rnd() * 1.5) * U
+        d += `M${f2(cx - r)} ${f2(cy)}a${f2(r)} ${f2(r)} 0 1 0 ${f2(2 * r)} 0a${f2(r)} ${f2(r)} 0 1 0 ${f2(-2 * r)} 0`
+      }
+    } else if (motif === 'glow') {
+      group = { fill: WHITE }
+    } else {
+      // rays: 12 wedges of 12 degrees from the body's centre
+      const R = 400
+      for (let i = 0; i < 12; i++) {
+        const a = i * 30 * RAD
+        const p = (b: number) =>
+          `${f2(170 + R * Math.sin(b))} ${f2(mid - R * Math.cos(b))}`
+        d += `M170 ${f2(mid)}L${p(a - 6 * RAD)}L${p(a + 6 * RAD)}Z`
+      }
+      paint = { fill: WHITE }
+      group = { opacity: 0.24 }
+    }
+    const kids =
+      motif === 'glow'
+        ? [
+            n('ellipse', 'motif.shape', {
+              cx: f2(170 - side * 0.4),
+              cy: f2(top + h * 0.25),
+              rx: f2(side * 0.36),
+              ry: f2(h * 0.15),
+              transform: `rotate(-24 ${f2(170 - side * 0.4)} ${f2(top + h * 0.25)})`,
+              opacity: 0.32,
+            }),
+            n('ellipse', 'motif.shape2', {
+              cx: f2(170 - side * 0.62),
+              cy: f2(top + h * 0.45),
+              rx: f2(side * 0.1),
+              ry: f2(h * 0.06),
+              opacity: 0.3,
+            }),
+          ]
+        : [n('path', 'motif.shape', { d, ...paint })]
+    over.push(n('g', 'motif', { 'clip-path': clip, ...group }, kids))
+  }
+
+  // shading, clipped like the motif
+  if (shading === 'bold')
+    over.push(
+      n('g', 'shade', { 'clip-path': clip }, [
+        n('ellipse', 'shade.bold', {
+          cx: 170,
+          cy: f2(bot + h * 0.1),
+          rx: f2(Math.max(side * 1.5, 200)),
+          ry: f2(h * 0.52),
+          fill: '#000',
+          opacity: 0.1,
+        }),
+      ]),
+    )
+  else if (shading === 'clay') {
+    const hx = 170 - side * 0.38
+    const hy = top + h * 0.27
+    over.push(
+      n('g', 'shade', { 'clip-path': clip }, [
+        n('ellipse', 'shade.clay', {
+          cx: f2(170 + side * 0.4),
+          cy: f2(bot - h * 0.02),
+          rx: f2(Math.max(side * 1.05, 120)),
+          ry: f2(h * 0.55),
+          fill: slot.deep,
+          opacity: 0.45,
+        }),
+        n('ellipse', 'shade.clay.hi', {
+          cx: f2(hx),
+          cy: f2(hy),
+          rx: f2(side * 0.34),
+          ry: f2(h * 0.17),
+          transform: `rotate(-28 ${f2(hx)} ${f2(hy)})`,
+          fill: WHITE,
+          opacity: 0.42,
+        }),
+        n('ellipse', 'shade.clay.spec', {
+          cx: f2(hx - side * 0.12),
+          cy: f2(hy - h * 0.05),
+          rx: f2(side * 0.08),
+          ry: f2(side * 0.05),
+          transform: `rotate(-28 ${f2(hx - side * 0.12)} ${f2(hy - h * 0.05)})`,
+          fill: WHITE,
+          opacity: 0.7,
+        }),
+      ]),
+    )
+  }
+
+  // the outline: on top of a plain body; a rounded body draws it behind,
+  // grown past its own rim, since a stroke on top would land inside the rim
+  if (outline) {
+    const color = outline.color(slot)
+    const w = outline.width
+    const ring = (key: string, width: number, opacity?: number) =>
+      shapeOf(key, {
+        fill: 'none',
+        stroke: color,
+        'stroke-width': f2(width),
+        'stroke-linejoin': 'round',
+        opacity,
+      })
+    if (outline.glow) under.push(ring('outline.glow', rim + w * 3.5, 0.18))
+    if (rim) under.push(ring('outline', rim + 2 * w))
+    else over.push(ring('outline', w))
+  }
+  return { under, over }
+}
+
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const sh: FaceGeom = FACES[who.face]
   const slot: Ink = o.ink ?? o.theme.colors[who.color]
@@ -408,6 +623,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           r: sh.body.circle[2],
           fill,
         })
+  const skin = skinOf(who, sh, slot, T, id, defs)
 
   // eyes
   const eyeS = g('eyeS')
@@ -1150,7 +1366,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(-0.55, 0.45),
           filter: riso ? `url(#${id}-pA)` : undefined,
         },
-        [bodyNode, ...cheeks, ...trait],
+        [...skin.under, bodyNode, ...skin.over, ...cheeks, ...trait],
       ),
       n(
         'g',
