@@ -29,6 +29,7 @@ exports[`adapter subpath the main entry stays frozen 1`] = `
   "defineTheme",
   "draw",
   "el",
+  "frames",
   "fxShapes",
   "identify",
   "parseHex",

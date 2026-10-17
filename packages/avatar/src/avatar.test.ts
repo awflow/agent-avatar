@@ -528,11 +528,17 @@ describe('adapter subpath', () => {
     expect(typeof adapter.serialize).toBe('function')
     expect(typeof adapter.toSvg).toBe('function')
     expect(typeof adapter.Live).toBe('function')
+    expect(typeof adapter.Rig).toBe('function')
+    expect(typeof adapter.frames).toBe('function')
   })
 
   test('the main entry stays frozen', () => {
     expect('Live' in entry).toBe(false)
     expect('restPose' in entry).toBe(false)
+    // deliberately added in Plan 4: frames() is name in, SVGs out; the pure
+    // Rig stays an adapter primitive
+    expect('Rig' in entry).toBe(false)
+    expect(typeof (entry as Record<string, unknown>).frames).toBe('function')
     // deliberately added in Plan 3: what a plugin author draws with
     for (const name of ['el', 'crownTop', 'swingOf'])
       expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')

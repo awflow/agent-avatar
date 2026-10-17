@@ -38,6 +38,8 @@ export {
 } from './plugins'
 export type { Reaction, ReactionSpec } from './reactions'
 export { REACTIONS } from './reactions'
+/** An animation as deterministic SVG strings, one per frame. */
+export { frames } from './rig'
 export type { AvatarOptions } from './svg'
 export { settle, toSvg } from './svg'
 export type {

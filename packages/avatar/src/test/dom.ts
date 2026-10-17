@@ -57,5 +57,25 @@ export function mount(name: string, o: AvatarOptions = {}, reduced = false) {
     o.activity,
   )
   const count = () => svg.querySelectorAll('*').length
-  return { live, svg, count, who, opts, tree, rig: live as any }
+  return { live, svg, count, who, opts, tree, rig: inside(live) }
+}
+
+/**
+ * The Live and the Rig it drives, seen as one object, for tests that read
+ * internals: a name the Live has is the Live's, any other is the Rig's.
+ */
+export function inside(live: Live): any {
+  const l = live as any
+  return new Proxy(l, {
+    get(t, k) {
+      if (k in t) return Reflect.get(t, k)
+      const v = Reflect.get(t.rig, k)
+      return typeof v === 'function' ? v.bind(t.rig) : v
+    },
+    set(t, k, v) {
+      return k in t || !(k in t.rig)
+        ? Reflect.set(t, k, v)
+        : Reflect.set(t.rig, k, v)
+    },
+  })
 }

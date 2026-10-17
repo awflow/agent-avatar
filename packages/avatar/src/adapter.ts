@@ -22,6 +22,7 @@ export {
   registerPlugins,
 } from './plugins'
 export { REACTIONS, type Reaction } from './reactions'
+export { frames, MAX_DT, Rig, type RigInput, type RigState } from './rig'
 export { type AvatarOptions, serialize, settle, toSvg } from './svg'
 export {
   deepOf,
