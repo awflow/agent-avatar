@@ -154,10 +154,13 @@ export class Live {
     if (this.watch) listen()
     // the DOM may hold a pose other than this one: the first paint fixes it
     this.paint()
-    this.io = new IntersectionObserver((es) => {
-      for (const e of es) this.visible = e.isIntersecting
-    })
-    this.io.observe(svg)
+    // without IntersectionObserver (jsdom, old engines) it stays visible
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.io = new IntersectionObserver((es) => {
+        for (const e of es) this.visible = e.isIntersecting
+      })
+      this.io.observe(svg)
+    }
     ALL.add(this)
     if (this.reduced) return
     LIVE.add(this)
