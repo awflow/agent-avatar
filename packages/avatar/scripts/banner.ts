@@ -1,4 +1,4 @@
-/* The README images, drawn by Peek itself. Run `bun scripts/banner.ts`.
+/* The README images, drawn by @awflow/avatar itself. Run `bun scripts/banner.ts`.
  * banner.svg: one face of every color, all turned to the one in the middle.
  * expressions.svg: one name through every expression.
  * names.svg: a name under each face, to show the name is the face. */
@@ -53,7 +53,7 @@ const CAST: [string, Expression][] = [
 const mid = (CAST.length - 1) / 2
 await sheet(
   'banner.svg',
-  'Seven Peek faces looking at the one in the middle',
+  'Seven AWFlow avatar faces looking at the one in the middle',
   CAST.map(([name, expression], i) => ({
     name,
     opts: {
@@ -68,7 +68,7 @@ await sheet(
 const EXPR = Object.keys(EXPRESSIONS) as Expression[]
 await sheet(
   'expressions.svg',
-  `One Peek face in ${EXPR.length} expressions`,
+  `One AWFlow avatar face in ${EXPR.length} expressions`,
   EXPR.map((expression) => ({
     name: 'Nia',
     opts: { expression },
@@ -94,7 +94,7 @@ const NAMES = [
 ]
 await sheet(
   'names.svg',
-  'Twelve names, twelve Peek faces',
+  'Twelve names, twelve AWFlow avatar faces',
   NAMES.map((name) => ({ name, opts: {}, label: name.toUpperCase() })),
   6,
   140,

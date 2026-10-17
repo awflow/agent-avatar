@@ -180,7 +180,7 @@ const FACES_V1 = {
 /* ---------- the 11 shapes appended for peek@2 ---------- */
 
 /* They are drawn on the mock prototype's 100-unit grid and scaled x3.4 into
- * Peek's 340-unit frame at module load. Every number is rounded to 0.01, so
+ * the 340-unit frame at module load. Every number is rounded to 0.01, so
  * the scaled geometry is the same bytes on every engine. */
 const K = 3.4
 const r2 = (v: number) => Math.round(v * 100) / 100 || 0
@@ -251,7 +251,7 @@ type Spec = {
   crown: { readonly poly: readonly Pt[]; readonly r: number }
 }
 
-/** A face from its mock anchors, every Peek field derived by one rule. */
+/** A face from its mock anchors, every FaceGeom field derived by one rule. */
 function shape(o: Spec, scaled = false): FaceGeom {
   const d = typeof o.body === 'string' ? o.body : o.body.d
   const body = {
