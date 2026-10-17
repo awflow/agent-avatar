@@ -1,0 +1,59 @@
+{
+  "name": "@awflow/avatar-vue",
+  "version": "0.0.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepack": "bun scripts/build.ts",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@awflow/avatar": "workspace:^"
+  },
+  "peerDependencies": {
+    "vue": ">=3.5"
+  },
+  "devDependencies": {
+    "@awflow/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "jsdom": "^25",
+    "typescript": "^6.0.2",
+    "vitest": "^5",
+    "vue": "^3.5.0"
+  },
+  "description": "Deterministic SVG avatars from a name, as a Vue component.",
+  "license": "MIT",
+  "author": "AWFlow",
+  "homepage": "https://github.com/awflow/avatar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awflow/avatar.git",
+    "directory": "packages/avatar-vue"
+  },
+  "keywords": [
+    "avatar",
+    "svg",
+    "vue",
+    "deterministic",
+    "avatar-library"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
