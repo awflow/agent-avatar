@@ -30,14 +30,15 @@
     "@awflow/avatar": "workspace:^"
   },
   "peerDependencies": {
-    "svelte": "^5"
+    "svelte": "^5.20"
   },
   "devDependencies": {
     "@awflow/typescript-config": "workspace:*",
     "@sveltejs/package": "^2",
     "@sveltejs/vite-plugin-svelte": "^7",
+    "@types/bun": "latest",
     "jsdom": "^25",
-    "svelte": "^5",
+    "svelte": "^5.20",
     "svelte-check": "^4",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",

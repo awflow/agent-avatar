@@ -7,8 +7,10 @@ import {
 } from '@awflow/avatar/adapter'
 import { render } from 'svelte/server'
 import { describe, expect, test } from 'vitest'
-import { PARITY_CASES } from '../../avatar/test/parity-cases'
-import { Avatar } from './index'
+import { PARITY_CASES, versionOf } from '../../avatar/test/parity-cases'
+import { domId } from '../src/id'
+import { Avatar } from '../src/index'
+import IdProbe from './id-probe.svelte'
 
 const strip = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '')
 
@@ -24,6 +26,12 @@ const canon = (el: Element): string => {
 const tree = (svg: string) =>
   canon(new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement)
 
+/* the svg id prefix of an <Avatar> rendered alone: its $props.id() */
+function rootId(version?: number): string {
+  const id = strip(render(IdProbe).body).replace(/<\/?i>/g, '')
+  return domId(id, version)
+}
+
 /* what an animated avatar paints first: the live tree, serialized */
 const liveSvg = (name: string, opts: Parameters<typeof settle>[1]) => {
   const { who, pose, opts: d } = settle(name, opts, true)
@@ -36,9 +44,19 @@ describe('SSR parity with toSvg', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       const out = render(Avatar, { props: { name, ...opts } })
-      expect(tree(strip(out.body))).toBe(tree(toSvg(name, opts)))
+      expect(tree(strip(out.body))).toBe(
+        tree(toSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
+      )
     })
   }
+
+  test('ids are per render and per instance, never the content hash', () => {
+    expect(rootId()).toMatch(/^awf-\w+$/)
+    const out = render(Avatar, { props: { name: 'Ada', animate: true } })
+    expect(out.body).toContain(`id="${rootId()}-`)
+    const hashed = toSvg('Ada').match(/id="(awf-[a-z0-9]+)-/)![1]
+    expect(out.body).not.toContain(`id="${hashed}-`)
+  })
 
   test('render is stable across calls', () => {
     const a = render(Avatar, { props: { name: 'Ada', expression: 'happy' } })
@@ -71,7 +89,8 @@ describe('SSR parity with toSvg', () => {
     expect(svg.getAttribute('style')).toBe('border-radius: 50%')
     svg.removeAttribute('class')
     svg.removeAttribute('style')
-    expect(canon(svg)).toBe(tree(toSvg('Linh', { version: 1 })))
+    expect(rootId(1).startsWith('peek-')).toBe(true)
+    expect(canon(svg)).toBe(tree(toSvg('Linh', { version: 1, id: rootId(1) })))
   })
 
   test('reaction props never change the markup', () => {
@@ -87,7 +106,9 @@ describe('animated SSR emits the live tree', () => {
   for (const { name, opts } of CASES) {
     test(`${name} ${JSON.stringify(opts)}`, () => {
       const out = render(Avatar, { props: { name, ...opts, animate: true } })
-      expect(tree(strip(out.body))).toBe(tree(liveSvg(name, opts)))
+      expect(tree(strip(out.body))).toBe(
+        tree(liveSvg(name, { ...opts, id: rootId(versionOf(opts)) })),
+      )
     })
   }
 })
@@ -107,12 +128,20 @@ const testHat = {
   ],
 }
 
+describe('packaging', () => {
+  test('src holds no tests: svelte-package ships all of src', async () => {
+    const { readdirSync } = await import('node:fs')
+    const files = readdirSync('src', { recursive: true }) as string[]
+    expect(files.filter((f) => /\.test\./.test(f))).toEqual([])
+  })
+})
+
 describe('plugins', () => {
   test('a registered plugin hat renders as toSvg does', () => {
     registerPlugins([testHat])
     const opts = { headwear: 'test-hat' as never, size: 200 }
     const out = render(Avatar, { props: { name: 'Linh', ...opts } })
-    const svg = toSvg('Linh', opts)
+    const svg = toSvg('Linh', { ...opts, id: rootId() })
     expect(svg).toContain('M110 40L230 40L170 0Z')
     expect(tree(strip(out.body))).toBe(tree(svg))
   })

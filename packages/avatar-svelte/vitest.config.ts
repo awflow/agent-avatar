@@ -30,7 +30,8 @@ const server = ['awflow-src', 'module', 'node', 'development|production']
 
 // Two projects: the SSR one renders through svelte/server; the client one
 // compiles components for the browser and mounts them in jsdom. Client tests
-// are `*.test.svelte.ts` so they can hold $state props.
+// are `*.test.svelte.ts` so they can hold $state props. Tests live in
+// test/, outside src, so svelte-package never ships them.
 export default defineConfig({
   test: {
     projects: [
@@ -42,7 +43,7 @@ export default defineConfig({
         test: {
           name: 'ssr',
           environment: 'jsdom',
-          include: ['src/**/*.test.ts'],
+          include: ['test/**/*.test.ts'],
         },
       },
       {
@@ -52,7 +53,7 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
-          include: ['src/**/*.test.svelte.ts'],
+          include: ['test/**/*.test.svelte.ts'],
         },
       },
     ],

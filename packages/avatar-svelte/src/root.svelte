@@ -6,48 +6,37 @@
    * everything inside it. Svelte keeps only class and style, which the core
    * never touches. A new identity is a new instance of this component.
    */
-  import {
-    type AvatarHandle,
-    attach,
-    type MountOptions,
-    type Node,
-  } from '@awflow/avatar/adapter'
+  import type { MountOptions, Node } from '@awflow/avatar/adapter'
   import { onMount } from 'svelte'
   import NodeView from './node.svelte'
 
+  type Snapshot = { gen: number; o: MountOptions; tree: Node }
+
   let {
-    tree,
-    opts,
-    adopt,
+    snap,
+    bind,
     class: className,
     style,
   }: {
-    tree: Node
-    opts: MountOptions
-    adopt: (handle: AvatarHandle) => () => void
+    snap: Snapshot
+    /** Attaches the core to the svg; returns the release. */
+    bind: (svg: SVGSVGElement, snap: Snapshot) => () => void
     class?: string
     style?: string
   } = $props()
 
   let svg: SVGSVGElement
 
-  onMount(() => {
-    const handle = attach(svg, opts)
-    const release = adopt(handle)
-    return () => {
-      release()
-      handle.destroy()
-    }
-  })
+  onMount(() => bind(svg, snap))
 </script>
 
 <svg
   bind:this={svg}
-  {...tree.attrs}
+  {...snap.tree.attrs}
   {...(className !== undefined ? { class: className } : {})}
   {...(style !== undefined ? { style } : {})}
 >
-  {#each tree.children as child (child.key)}
+  {#each snap.tree.children as child (child.key)}
     <NodeView node={child} />
   {/each}
 </svg>

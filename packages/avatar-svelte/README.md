@@ -12,7 +12,7 @@ shared core, rendered here through Svelte.
 npm install @awflow/avatar-svelte @awflow/avatar svelte
 ```
 
-`svelte` is an optional peer dependency (Svelte 5).
+`svelte` is a peer dependency (Svelte 5.20 or later, for `$props.id()`).
 
 ## Usage
 
@@ -38,20 +38,22 @@ npm install @awflow/avatar-svelte @awflow/avatar svelte
   and the wardrobe slots (`eyewear`, `headwear`, `neckwear`): everything
   `@awflow/avatar`'s options accept, passed straight through.
 - `class`, `style`: applied to the root `<svg>`.
-- `id`: see below.
 
-## The `id` prop
+## Ids
 
-Each avatar's internal SVG ids are derived from a hash of everything drawn, so
-they are stable across the server and the client and unique per distinct
-avatar. If you render two byte-identical avatars (same `name` and the same
-options) on one page, they would share those ids. Pass an explicit `id` to keep
-them distinct:
+Each `<Avatar>` gets its own SVG ids from `$props.id()`, the same on the
+server and the client, so two identical avatars on one page never share a
+clip path or gradient. There is no `id` prop.
 
-```svelte
-<Avatar name="Ada" id="hero" />
-<Avatar name="Ada" id="footer" />
-```
+## Imperative API
+
+Bind the component (`bind:this={avatar}`) to call:
+
+- `react(name)`, `pulse(strength?)`, `setVoice(fn | null)`: animated only.
+- `lookAt(target)`: another `<Avatar>` instance, a handle, an element, or
+  `null` to look ahead.
+- `getHandle()`: the core handle once mounted, `null` before.
+- `getElement()`: the `<svg>` showing the avatar, `null` before mount.
 
 ## License
 

@@ -13,6 +13,7 @@
    */
   import {
     type AvatarHandle,
+    attach,
     draw,
     type Gaze,
     isIdentityChange,
@@ -23,9 +24,13 @@
   } from '@awflow/avatar/adapter'
   import { untrack } from 'svelte'
   import { getGroupContext } from './group'
+  import { domId } from './id'
   import Root from './root.svelte'
 
-  type Props = Omit<MountOptions, 'style'> & {
+  /** Another <Avatar> (its component instance), as lookAt() takes it. */
+  type AvatarInstance = { getHandle(): AvatarHandle | null }
+
+  type Props = Omit<MountOptions, 'style' | 'id'> & {
     /** CSS class on the svg. */
     class?: string
     /** CSS style on the svg; pin a drawing version with `version`. */
@@ -34,7 +39,13 @@
 
   let { class: className, style, ...rest }: Props = $props()
 
-  const opts = $derived<MountOptions>({ ...rest })
+  // per instance and the same on the server and the client: the svg's defs
+  // ids never collide with another avatar's on the page
+  const uid = $props.id()
+  const opts = $derived<MountOptions>({
+    ...rest,
+    id: domId(uid, rest.version),
+  })
 
   // bumps on every identity change: the {#key} below rebuilds the svg
   let generation = 0
@@ -65,69 +76,98 @@
     return draw(s.who, s.pose, s.opts)
   }
 
+  type Snapshot = { gen: number; o: MountOptions; tree: Node }
+
   // one snapshot per identity: later state goes through the handle
-  const snap = $derived.by(() => {
-    sig
+  const snap = $derived.by((): Snapshot => {
+    const gen = sig
     return untrack(() => {
       const o = { ...opts }
-      return { o, tree: build(o) }
+      return { gen, o, tree: build(o) }
     })
   })
 
   const group = getGroupContext()
-  let handle = $state.raw<AvatarHandle | null>(null)
+  /* the handle and the snapshot generation it was attached for */
+  let current = $state.raw<{ handle: AvatarHandle; gen: number } | null>(null)
   let voice: (() => number) | null = null
-  let target: AvatarHandle | Element | null = null
+  let target: AvatarInstance | AvatarHandle | Element | null = null
+  /* the reactKey last sent to a handle, once one was sent */
+  let sent: { reactKey: unknown } | null = null
 
-  function adopt(h: AvatarHandle) {
+  /** Resolves an Avatar instance to its handle; anything else passes. */
+  const resolve = (t: AvatarInstance | AvatarHandle | Element | null) =>
+    t && 'getHandle' in t ? t.getHandle() : t
+
+  /*
+   * Adopts the svg Root rendered for snapshot `s`. A reactKey that changed
+   * together with the identity must still play, on the new handle: it is
+   * attached with the key the old one last had, and the state effect below
+   * then sends the new key.
+   */
+  function bind(svg: SVGSVGElement, s: Snapshot): () => void {
+    const h = attach(svg, sent ? { ...s.o, reactKey: sent.reactKey } : s.o)
     if (voice) h.setVoice(voice)
-    if (target) h.lookAt(target)
-    const leave = group?.registerMember(untrack(() => opts.name), h)
-    handle = h
+    if (target) h.lookAt(resolve(target))
+    const leave = group?.registerMember(s.o.name, h)
+    current = { handle: h, gen: s.gen }
     return () => {
       leave?.()
-      if (handle === h) handle = null
+      if (current?.handle === h) current = null
+      h.destroy()
     }
   }
 
-  // state only, never identity: see the note at the top
+  // state only, never identity: see the note at the top. Only the handle of
+  // the current identity takes it: a handle about to be replaced never does.
   $effect(() => {
-    const h = handle
+    const c = current
+    const gen = sig
     const { expression, activity, gaze, ring, reaction, reactKey } = opts
-    if (h)
-      untrack(() =>
-        h.set({ expression, activity, gaze, ring, reaction, reactKey }),
-      )
+    if (c && c.gen === gen)
+      untrack(() => {
+        c.handle.set({ expression, activity, gaze, ring, reaction, reactKey })
+        sent = { reactKey }
+      })
   })
 
   /** Plays a one-shot reaction. Animated avatars only. */
   export function react(name: Reaction) {
-    handle?.react(name)
+    current?.handle.react(name)
   }
 
   /** A one-shot bounce, 0..1 (default 1). Animated avatars only. */
   export function pulse(strength?: number) {
-    handle?.pulse(strength)
+    current?.handle.pulse(strength)
   }
 
   /** Lip-sync: a function returning the mouth opening 0..1, or null. */
   export function setVoice(source: (() => number) | null) {
     voice = source
-    handle?.setVoice(source)
+    current?.handle.setVoice(source)
   }
 
-  /** Looks at another avatar's handle or an element; null looks ahead. */
-  export function lookAt(t: AvatarHandle | Element | null) {
+  /**
+   * Looks at another <Avatar> (its instance), a handle or an element; null
+   * looks ahead. Another avatar is resolved to its handle now and again
+   * whenever this one gets a new svg.
+   */
+  export function lookAt(t: AvatarInstance | AvatarHandle | Element | null) {
     target = t
-    handle?.lookAt(t)
+    current?.handle.lookAt(resolve(t))
   }
 
   /** The core handle once mounted, null before (and on the server). */
   export function getHandle(): AvatarHandle | null {
-    return handle
+    return current?.handle ?? null
+  }
+
+  /** The svg showing the avatar, null before mount (and on the server). */
+  export function getElement(): SVGSVGElement | null {
+    return current?.handle.element ?? null
   }
 </script>
 
 {#key sig}
-  <Root tree={snap.tree} opts={snap.o} {adopt} class={className} {style} />
+  <Root {snap} {bind} class={className} {style} />
 {/key}
