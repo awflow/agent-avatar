@@ -196,8 +196,31 @@ describe('placement', () => {
                 find(tree, 'wear.prop.book')!.attrs.transform!,
               )![1],
             )
-            expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
+            // the one tight case: a round peek frame on the semicircle holds
+            // a small prop beside the face rather than float it into the
+            // hat zone over the brows
+            const tight =
+              !square && framing === 'peek' && shape === 'semicircle'
+            expect(k).toBeGreaterThanOrEqual(3.4 * (tight ? 0.35 : 0.75) - 0.01)
           }
+  })
+
+  test('the round semicircle never floats a prop over the brows', () => {
+    for (const name of ['Ada', 'Linh', 'Zed Okafor', 'Mira', 'Kofi'])
+      for (const spread of [-7, 0, 7]) {
+        const { who, pose, opts } = settle(name, {
+          prop: 'book',
+          size: 300,
+          shape: 'semicircle',
+          square: false,
+        } as any)
+        who.persona.spread = spread
+        const tree = draw(who, pose, opts)
+        const p = absBox(tree, 'wear.prop.book')
+        // beside the face, out past the right eye: over the brows it would
+        // sit in the hat zone, centred above the head
+        expect(p.x0).toBeGreaterThanOrEqual(absBox(tree, 'eye1').x1)
+      }
   })
 
   test('never covers the face, stays in the visible or round frame', () => {

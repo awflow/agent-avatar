@@ -406,3 +406,18 @@ describe('the first live paint', () => {
     }
   })
 })
+
+describe('mustache follows the mouth skew', () => {
+  const tf = (mk: number) => {
+    const { who, pose, opts } = settle('Ada', { size: 300, face: 'mustache' })
+    who.persona.add = { ...who.persona.add, mk }
+    const tree = draw(who, pose, opts)
+    return find(tree, 'wear.decor.mustache')!.attrs.transform!
+  }
+
+  test('no skew leaves the plain translate, a skew turns it about the mouth', () => {
+    expect(tf(0)).not.toContain('rotate')
+    expect(tf(13)).toMatch(/rotate\(13\)/)
+    expect(tf(-13)).toMatch(/rotate\(-13\)/)
+  })
+})

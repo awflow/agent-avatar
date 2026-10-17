@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Live } from '../animate'
 import { draw, loopPhase, type Node, type Pose, restPose } from '../draw'
+import { defineShape, registerPlugins, resetPluginsForTests } from '../plugins'
 import { serialize, settle, toSvg } from '../svg'
 import { ACCESSORIES, EXPRESSIONS, type Expression, FACES } from '../tables'
 import { fakeDom, motion } from '../test/dom'
@@ -329,5 +330,39 @@ describe('the phased wardrobe clock', () => {
         for (const e of NEW)
           expect(firstPaintWrites(name, { eyewear: e, activity })).toEqual([])
       }
+  })
+})
+
+describe('visor on eyes that are not level', () => {
+  const tilty = defineShape({
+    name: 'tilty',
+    geom: {
+      ...FACES.circle,
+      eyes: [
+        [FACES.circle.eyes[0][0], FACES.circle.eyes[0][1] - 14],
+        [FACES.circle.eyes[1][0], FACES.circle.eyes[1][1] + 14],
+      ],
+    },
+  })
+
+  test('level eyes keep the upright band, tilted eyes tilt it through both', () => {
+    const level = worn('visor', { shape: 'circle' }).tree
+    expect(find(level, 'wear.eyewear.visor.tilt')).toBeUndefined()
+    registerPlugins([tilty])
+    try {
+      const { tree } = worn('visor', { shape: 'tilty' as any })
+      const tilt = find(tree, 'wear.eyewear.visor.tilt')!
+      const deg = Number(/rotate\((-?[\d.]+)/.exec(tilt.attrs.transform!)![1])
+      expect(deg).toBeGreaterThan(5)
+      // each glow sits at its own eye's height
+      const g0 = Number(find(tree, 'wear.eyewear.visor.glow0')!.attrs.cy)
+      const g1 = Number(find(tree, 'wear.eyewear.visor.glow1')!.attrs.cy)
+      expect(g1 - g0).toBeCloseTo(28, 0)
+      expect(
+        toSvg('Ada', { shape: 'tilty' as any, eyewear: 'visor' }),
+      ).not.toMatch(/NaN|Infinity|undefined/)
+    } finally {
+      resetPluginsForTests()
+    }
   })
 })

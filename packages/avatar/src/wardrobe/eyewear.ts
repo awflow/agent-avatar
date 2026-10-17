@@ -29,6 +29,7 @@ function sockets(ctx: WearCtx) {
   const spread = ctx.who.persona.spread
   const eyeS = g('eyeS')
   const ey = sh.eyes[0][1]
+  const eyR = sh.eyes[1][1]
   const lid0 = g('lid')
   const asym = g('lidAsym')
   // the same lids draw() closes the eyes with: asymmetry, wink, then blink
@@ -41,6 +42,7 @@ function sockets(ctx: WearCtx) {
     l: sh.eyes[0][0] - spread,
     r: sh.eyes[1][0] + spread,
     ey,
+    eyR,
     rx: sh.rx * eyeS,
     ry: sh.ry * eyeS,
     lids,
@@ -119,17 +121,23 @@ const monocle: WearDraw = (ctx) => {
 
 /** A dark band over both eyes; two cyan glows look and blink for them. */
 const visor: WearDraw = (ctx) => {
-  const { l, r, ey, rx, ry, lids } = sockets(ctx)
+  const { l, r, ey, eyR, rx, ry, lids } = sockets(ctx)
   const key = (p: string) => `wear.eyewear.visor.${p}`
   const h = clamp(ry * 1.7, 30, 54)
   const half = Math.min((r - l) / 2 + rx + 12, ctx.sh.side - 4)
-  const x0 = 170 - half
+  // level eyes (every built-in face) keep the band upright on the centre
+  // line, as ever. A shape whose eyes sit at different heights tilts the
+  // band through both and centres it between them, the glows on their own
+  const tilt = eyR !== ey
+  const cx0 = tilt ? (l + r) / 2 : 170
+  const cy0 = tilt ? (ey + eyR) / 2 : ey
+  const x0 = cx0 - half
   const gx = clamp(ctx.g('gx'), -1.1, 1.1)
   const gr = clamp(rx * 0.36, 6, 11)
-  const parts: Node[] = [
+  const band: Node[] = [
     el('rect', key('band'), {
       x: f2(x0),
-      y: f2(ey - h / 2),
+      y: f2(cy0 - h / 2),
       width: f2(half * 2),
       height: f2(h),
       rx: f2(h / 2),
@@ -140,14 +148,29 @@ const visor: WearDraw = (ctx) => {
     el('path', key('sheen'), {
       ...line(ctx, 3, INK.paper),
       opacity: 0.22,
-      d: `M${f2(x0 + h * 0.45)} ${f2(ey - h * 0.28)}H${f2(170 + half - h * 0.45)}`,
+      d: `M${f2(x0 + h * 0.45)} ${f2(cy0 - h * 0.28)}H${f2(cx0 + half - h * 0.45)}`,
     }),
   ]
+  const parts: Node[] = tilt
+    ? [
+        el(
+          'g',
+          key('tilt'),
+          {
+            transform: `rotate(${f2((Math.atan2(eyR - ey, r - l) * 180) / Math.PI)} ${f2(cx0)} ${f2(cy0)})`,
+          },
+          band,
+        ),
+      ]
+    : band
   for (const [i, cx] of [l, r].entries()) {
     // open at 1, a hairline when shut
     const open = 1 - lids[i]!
     const gy = Math.max(1.2, gr * 1.25 * open)
-    const at = { cx: f2(cx + gx * GLOW_TRAVEL), cy: f2(ey) }
+    const at = {
+      cx: f2(cx + gx * GLOW_TRAVEL),
+      cy: f2(i === 0 ? ey : eyR),
+    }
     parts.push(
       el('ellipse', key(`halo${i}`), {
         ...at,

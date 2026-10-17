@@ -87,10 +87,19 @@ const mustache: WearDraw = (ctx) => {
   const s = clamp(m.w / 16, 0.8, 1.2)
   const y = lip - m.sw * ctx.stroke - 8 * s
   const ink = inkOf(ctx)
+  // it rides the mouth: the persona's mouth skew (mk) turns both about the
+  // mouth's own origin, so a lopsided grin carries its mustache with it
+  const mk = g('mk')
+  const mx = m.x + g('mx')
+  const my = m.y + g('my')
+  const at =
+    mk === 0
+      ? `translate(${f2(mx)} ${f2(y)})`
+      : `translate(${f2(mx)} ${f2(my)}) rotate(${f2(mk)}) translate(0 ${f2(y - my)})`
   return root(
     'mustache',
     {
-      transform: `translate(${f2(m.x + g('mx'))} ${f2(y)}) scale(${f2(s)})`,
+      transform: `${at} scale(${f2(s)})`,
     },
     [
       el('path', key('curl'), {

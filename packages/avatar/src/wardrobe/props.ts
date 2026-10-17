@@ -42,6 +42,9 @@ const BOB = 4
 const RISE = 18
 // a prop may shrink this far to stay clear of the face in a tight frame
 const SHRINK = [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] as const
+// smaller still, tried beside the face before the prop goes over the brows:
+// a prop up there floats into the hat zone (the round semicircle in peek)
+const SMALLEST = [0.45, 0.4, 0.35] as const
 // room kept around the eyes, brows and mouth
 const PAD = 4
 
@@ -144,7 +147,7 @@ function search(
   // beside the face at any scale first; over the brows (beside the crown)
   // only as a last resort, since a hat may sit there
   for (const overBrows of [false, true])
-    for (const k of SHRINK) {
+    for (const k of overBrows ? SHRINK : [...SHRINK, ...SMALLEST]) {
       const h = HALF * k
       const hy = h + BOB
       const up = RISE * UNIT * k + BOB
