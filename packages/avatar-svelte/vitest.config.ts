@@ -1,4 +1,4 @@
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
+import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 import { compile, preprocess } from 'svelte/compiler'
 import { defineConfig } from 'vitest/config'
 
@@ -23,10 +23,29 @@ const svelteSsr = {
   },
 }
 
+// Two projects: the SSR one renders through svelte/server; the client one
+// compiles components for the browser and mounts them in jsdom. Client tests
+// are `*.test.svelte.ts` so they can hold $state props.
 export default defineConfig({
-  plugins: [svelteSsr],
   test: {
-    environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    projects: [
+      {
+        plugins: [svelteSsr],
+        test: {
+          name: 'ssr',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        plugins: [svelte({ compilerOptions: { dev: false } })],
+        resolve: { conditions: ['browser'] },
+        test: {
+          name: 'client',
+          environment: 'jsdom',
+          include: ['src/**/*.test.svelte.ts'],
+        },
+      },
+    ],
   },
 })
