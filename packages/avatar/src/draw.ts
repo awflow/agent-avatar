@@ -9,13 +9,8 @@
  * what is invisible (opacity 0) to stay small.
  */
 
-import {
-  ACTIVITIES,
-  type Activity,
-  activityLoop,
-  blend,
-  type FxKind,
-} from './activity'
+import { ACTIVITIES, type Activity, activityLoop, blend } from './activity'
+import { FX_KINDS, FX_POOL, type FxKind, fxShapes } from './fx'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import {
   ACCESSORY_INK,
@@ -99,6 +94,11 @@ export type DrawOptions = {
   ring?: Ring | null
   /** Level of detail from `size`. Off unless set (settle turns it on from v2). */
   lod?: boolean
+  /**
+   * false hides every overlay; true (the default) draws the activity's and
+   * the reaction's; a string also draws that overlay by name.
+   */
+  fx?: boolean | string
 }
 
 /** `key` (the tidied name) seeds the speckle motif. */
@@ -1471,11 +1471,56 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     ],
   )
 
-  // full framing: the whole body plus hat room, centred and scaled down
+  // The fx layer: the activity's overlays, then the reaction's, poured into
+  // a fixed pool of FX_POOL paths so a live tree keeps its nodes whatever is
+  // shown. Frame space, anchored on the body's offset but not its tilt or
+  // squash, so a bubble does not lean with the head. Below 44px only the ask
+  // badge stays, grown to read.
+  const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
+  const kinds: FxKind[] = []
+  if (o.fx !== false) {
+    kinds.push(...(ACTIVITIES[pose.activity]?.fx ?? []))
+    if (pose.fx) kinds.push(pose.fx)
+    if (typeof o.fx === 'string' && (FX_KINDS as string[]).includes(o.fx))
+      kinds.push(o.fx as FxKind)
+  }
+  const anchor = {
+    headX: 170 + x,
+    headTop: top + ty,
+    side: sh.side,
+    eyeY: sh.eyes[0][1] + ty,
+    mouthY: sh.mouth.y + g('my') + ty,
+  }
+  const shapes = kinds
+    .filter((kind) => tier >= 2 || kind === 'ask')
+    .flatMap((kind) =>
+      fxShapes(kind, pose.t, pose.fxP, anchor, inkC, dark, tier < 2 ? 1.8 : 1),
+    )
+  const pool: Node[] = []
+  for (let i = 0; i < FX_POOL; i++) {
+    const s = shapes[i]
+    pool.push(
+      s
+        ? n('path', `fx.${i}`, {
+            d: s.d,
+            fill: s.fill,
+            stroke: s.stroke === 'none' ? undefined : s.stroke,
+            'stroke-width': s.strokeWidth ? f2(s.strokeWidth) : undefined,
+            'stroke-linecap': s.strokeWidth ? 'round' : undefined,
+            'stroke-linejoin': s.strokeWidth ? 'round' : undefined,
+            opacity: s.opacity < 1 ? f3(s.opacity) : undefined,
+            transform: s.transform || undefined,
+          })
+        : n('path', `fx.${i}`, { d: 'M0 0', opacity: 0 }),
+    )
+  }
+  const fxLayer = n('g', 'fx', {}, pool)
+
+  // full framing: the whole body plus hat room, centred and scaled down; the
+  // fx ride inside the same transform so they follow the body
   let framed = av
   if (full) {
-    const body: Node[] = [av]
-    const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
+    const body: Node[] = [av, fxLayer]
     const c = (top - HEADROOM + sh.bottom) / 2 + baseY
     // clay rests on a soft contact shadow under the body's bottom
     if (T.shading === 'clay')
@@ -1521,6 +1566,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     scene.push(n('g', 'lattice', { fill: dark ? INK.bone : INK.ink }, dots))
   }
   scene.push(framed)
+  if (!full) scene.push(fxLayer)
   if (grainy)
     scene.push(
       n('rect', 'grain', {
@@ -1531,7 +1577,11 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       }),
     )
 
-  // the presence ring: from 12 o'clock, clockwise, `progress` of the way
+  // The presence ring: from 12 o'clock, clockwise, `progress` of the way. It
+  // is state, not identity: it never joins the id, and a live tree always
+  // carries the node (opacity 0 with no ring) so it can come and go without
+  // a re-render. Framework adapters keep `ring` out of their re-render key.
+  // A pulsing ring breathes only when live; a static one is solid.
   if (o.ring) {
     const p = Number.isFinite(o.ring.progress ?? 1)
       ? clamp(o.ring.progress ?? 1, 0, 1)
@@ -1549,9 +1599,24 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         'stroke-linecap': arc && p > 0 ? 'round' : undefined,
         'stroke-dasharray': arc ? `${f2(p * C)} ${f2(C)}` : undefined,
         transform: arc ? 'rotate(-90 170 170)' : undefined,
+        opacity:
+          o.live && o.ring.pulse
+            ? f3(0.55 + 0.45 * Math.sin(5 * pose.t))
+            : undefined,
       }),
     )
-  }
+  } else if (o.live)
+    scene.push(
+      n('circle', 'ring', {
+        cx: 170,
+        cy: 170,
+        r: RING_R,
+        fill: 'none',
+        stroke: 'none',
+        'stroke-width': RING_W,
+        opacity: 0,
+      }),
+    )
 
   const root = n(
     'svg',

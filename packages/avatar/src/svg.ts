@@ -62,8 +62,17 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
   version?: number
   /** Let the name pick the wardrobe too (v2+). Default off. */
   dress?: boolean
-  /** A presence ring around the frame; progress 0..1 draws an arc. */
+  /**
+   * A presence ring around the frame; progress 0..1 draws an arc, pulse
+   * breathes it when live. State, not identity: it never changes the id, and
+   * framework adapters keep it out of their re-render key.
+   */
   ring?: Ring | null
+  /**
+   * false hides every overlay; true (the default) draws the activity's and
+   * the reaction's; a string also draws that overlay by name.
+   */
+  fx?: boolean | string
   /** 'peek' crops at the floor (default); 'full' shows the whole body. */
   framing?: Framing
   /** Thin the face out at small sizes. Default on from version 2, off at 1. */
@@ -153,14 +162,16 @@ export function settle(
       : null
   const lodDefault = who.version >= 2
   const lod = typeof o.lod === 'boolean' ? o.lod : lodDefault
-  // theme name, custom ink, framing, ring and a non-default lod join the id
-  // only when set: existing ids hold
+  const fx = typeof o.fx === 'string' || o.fx === false ? o.fx : true
+  // theme name, custom ink, framing, a non-default lod and fx join the id
+  // only when set: existing ids hold. The ring never does: it is state, has
+  // no defs to collide, and must change without a new id.
   const extra = {
     ...(theme.name === 'soft' ? {} : { theme: theme.name }),
     ...(ink ? { ink } : {}),
     ...(framing === 'full' ? { framing } : {}),
-    ...(ring ? { ring } : {}),
     ...(lod !== lodDefault ? { lod } : {}),
+    ...(fx !== true ? { fx } : {}),
   }
   // Keep the byte-level peek@1 contract: an axis at its v1 default (no
   // wardrobe, plain motif, no decor) stays out of the hashed identity.
@@ -200,6 +211,7 @@ export function settle(
       framing,
       ring,
       lod,
+      fx,
     },
   }
 }

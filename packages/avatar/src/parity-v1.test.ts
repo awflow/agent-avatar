@@ -4,7 +4,7 @@
  * name now draws differently: that needs a new version, not a new snapshot.
  */
 import { describe, expect, test } from 'bun:test'
-import { draw } from './draw'
+import { draw, type Node } from './draw'
 import { fnv1a } from './identity'
 import { type AvatarOptions, serialize, settle, toSvg } from './svg'
 import { COLORS, EXPRESSIONS, type Expression, FACES, PARTS } from './tables'
@@ -134,12 +134,24 @@ describe('peek@1 parity', () => {
     ).toMatchInlineSnapshot(`"eo831j"`)
   })
 
+  // A live tree also carries the state layer added in Plan 2: the fx pool
+  // and an invisible ring node, there so activities and a ring can come and
+  // go without new nodes. Peek's part of the tree must hold byte-identical.
+  const peekPart = (node: Node): Node => ({
+    ...node,
+    children: node.children
+      .filter(
+        (c) => c.key !== 'fx' && !(c.key === 'ring' && c.attrs.opacity === '0'),
+      )
+      .map(peekPart),
+  })
+
   test('the live tree', () => {
     expect(
       over((n) =>
         EXPRESSION_LIST.map((expression) => {
           const { who, pose, opts } = settle(n, { ...V1, expression }, true)
-          return serialize(draw(who, pose, opts))
+          return serialize(peekPart(draw(who, pose, opts)))
         }),
       ),
     ).toMatchInlineSnapshot(`"d3js66"`)

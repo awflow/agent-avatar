@@ -1,4 +1,4 @@
-export type { Activity, FxKind } from './activity'
+export type { Activity } from './activity'
 export { ACTIVITIES, activityLoop, blend } from './activity'
 export type { AvatarProps } from './avatar'
 export { Avatar } from './avatar'
@@ -13,6 +13,8 @@ export type {
 } from './draw'
 /** Low level: the drawing tree that toSvg and <Avatar> both render. */
 export { draw } from './draw'
+export type { FxAnchor, FxKind, FxShape } from './fx'
+export { FX_KINDS, fxShapes } from './fx'
 export type { Axes, Identity, Persona } from './identity'
 export { AXES, identify, LISTS, tidy } from './identity'
 export type { AvatarOptions } from './svg'

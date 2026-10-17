@@ -5,20 +5,10 @@
  * and deterministic: same inputs, same numbers.
  */
 
+import type { FxKind } from './fx'
 import { type Channels, EXPRESSIONS, type Expression } from './tables'
 
-/** Overlay kinds drawn by the fx layer (drawn from Task 2; named here). */
-export type FxKind =
-  | 'bubbles'
-  | 'zzz'
-  | 'sparkles'
-  | 'rings'
-  | 'spinner'
-  | 'waves'
-  | 'ask'
-  | 'sweat'
-  | 'hearts'
-  | 'confetti'
+export type { FxKind }
 
 export type Activity =
   | 'idle'

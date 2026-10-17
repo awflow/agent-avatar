@@ -107,9 +107,10 @@ describe('ring', () => {
         settle('Linh', { version, framing: 'peek', ring: null }).opts.id,
       ).toBe(a)
       expect(settle('Linh', { version, framing: 'full' }).opts.id).not.toBe(a)
+      // the ring is state: it never moves the id
       expect(
         settle('Linh', { version, ring: { color: '#F08A24' } }).opts.id,
-      ).not.toBe(a)
+      ).toBe(a)
     }
   })
 })

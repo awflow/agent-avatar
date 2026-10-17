@@ -10,6 +10,13 @@
  */
 
 import {
+  ACTIVITIES,
+  type Activity,
+  activityLoop,
+  activityOf,
+  blend,
+} from './activity'
+import {
   clamp,
   type Drawable,
   type DrawOptions,
@@ -19,15 +26,16 @@ import {
   type Node,
   type Pose,
   REST_T,
+  type Ring,
   restPose,
   smooth,
   thingGaze,
   VB,
 } from './draw'
+import { fnv1a } from './identity'
 import {
   type Channel,
   type Channels,
-  EXPRESSIONS,
   type Expression,
   FACES,
   GROUPS,
@@ -309,11 +317,14 @@ type Queued = { at: number; set: Key[1]; spr?: Key[2] }
 
 /**
  * One live avatar bound to an SVG that already shows `tree`. Starts settled
- * in `expression`, the same pose the server painted.
+ * in `expression` and `activity`, the same pose the server painted.
  */
 export class Live {
   visible = true
   private state: Expression
+  private activity: Activity
+  // offsets the activity loops so two faces on a page do not move in step
+  private phase: number
   private reduced: boolean
   private nodes = new Map<string, Element>()
   private prev = new Map<string, Record<string, string>>()
@@ -348,14 +359,16 @@ export class Live {
     private opts: DrawOptions,
     expression: Expression,
     gaze?: Gaze | 'pointer',
+    activity?: Activity,
   ) {
     this.state = expression
+    this.activity = activityOf(activity)
+    this.phase = (fnv1a(who.key ?? '') % 628) / 100
     this.bind(tree, svg)
     this.setGaze(gaze)
-    const start = restPose(who, expression, this.fixed ?? undefined)
+    const start = restPose(who, expression, this.gaze(), this.activity)
     this.val = { ...start }
-    this.base = { ...EXPRESSIONS[expression] }
-    if (this.fixed) [this.base.gx, this.base.gy] = this.fixed
+    this.base = this.target()
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
     this.lookThing = expression === 'curious'
     this.lag.y = -start.alt * frameOf(FACES[who.face]).R
@@ -428,10 +441,68 @@ export class Live {
     this.fixed = Array.isArray(gaze) ? (gaze as Gaze) : null
     this.watch = gaze === 'pointer'
     if (this.watch) listen()
-    if (this.reduced && this.fixed) {
-      ;[this.val.gx, this.val.gy] = this.fixed
+    const g = this.gaze()
+    if (this.reduced && g) {
+      ;[this.val.gx, this.val.gy] = g
       this.paint()
     }
+  }
+
+  /** The fixed gaze, unless the activity holds the eyes itself. */
+  private gaze(): Gaze | undefined {
+    return this.fixed && !ACTIVITIES[this.activity].lockGaze
+      ? this.fixed
+      : undefined
+  }
+
+  /** The resting channel targets: expression and activity, then gaze. */
+  private target(): Channels {
+    const t = blend(this.state, this.activity)
+    const g = this.gaze()
+    if (g) [t.gx, t.gy] = g
+    return t
+  }
+
+  /**
+   * What the agent is doing. Springs retarget straight to the blended pose,
+   * no choreography, so calling this every frame stays cheap; the activity's
+   * loop rides on top. Under reduced motion the static pose applies at once.
+   */
+  setActivity(activity: Activity) {
+    const a = activityOf(activity)
+    if (a === this.activity) return
+    this.activity = a
+    if (this.reduced) {
+      this.snap()
+      return
+    }
+    const t = this.target()
+    for (const c of CHANNELS) {
+      this.base[c] = t[c]
+      this.spr[c] = DEF_SPR[GROUP_OF[c]]
+    }
+    if (ACTIVITIES[a].lockGaze) this.lookThing = false
+  }
+
+  /**
+   * The presence ring is state: it changes here, on the node the live tree
+   * always carries, never through a new tree.
+   */
+  setRing(ring: Ring | null) {
+    this.opts = {
+      ...this.opts,
+      ring:
+        ring && typeof ring.color === 'string'
+          ? {
+              color: ring.color,
+              progress: Number.isFinite(ring.progress ?? 1)
+                ? clamp(ring.progress ?? 1, 0, 1)
+                : 1,
+              pulse: ring.pulse === true,
+            }
+          : null,
+    }
+    this.paint()
   }
 
   /* each group starts on its own beat */
@@ -442,7 +513,6 @@ export class Live {
     this.enteredAt = this.clock
     this.lookThing = false
     this.queue = []
-    const tgt = EXPRESSIONS[name]
     const ch = CHOREO[name] ?? {}
     const delay = { ...DEF_DELAY, ...ch.delay }
     const spr = { ...DEF_SPR, ...ch.spr }
@@ -452,7 +522,8 @@ export class Live {
     }
     for (const gr of Object.keys(GROUPS) as Group[]) {
       const set: Key[1] = {}
-      for (const c of GROUPS[gr]) set[c] = tgt[c]
+      // read when the group's beat comes, so an activity set meanwhile holds
+      for (const c of GROUPS[gr]) set[c] = () => this.target()[c]
       this.queue.push({
         at: this.clock + delay[gr] / 1000,
         set,
@@ -473,13 +544,15 @@ export class Live {
 
   /** Straight to the rest pose of the current state, no motion. */
   private snap() {
-    const rest = restPose(this.who, this.state, this.fixed ?? undefined)
+    const rest = restPose(this.who, this.state, this.gaze(), this.activity)
+    const base = this.target()
     for (const c of CHANNELS) {
-      this.base[c] = EXPRESSIONS[this.state][c]
+      this.base[c] = base[c]
       this.val[c] = rest[c]
       this.vel[c] = 0
     }
-    this.lookThing = this.state === 'curious'
+    this.lookThing =
+      this.state === 'curious' && !ACTIVITIES[this.activity].lockGaze
     this.queue = []
     this.bumps = []
     this.blinkT = -1
@@ -519,11 +592,15 @@ export class Live {
     const out = zero()
 
     // gaze: resting target, micro saccades, the thing, the pointer
+    // an activity that locks the gaze ignores the thing, a fixed gaze and
+    // the pointer: its loop does the looking
+    const lock = ACTIVITIES[this.activity].lockGaze
     let gx = this.base.gx
     let gy = this.base.gy
-    if (this.lookThing) [gx, gy] = thingGaze(face, this.val.x, this.val.alt)
-    if (this.fixed) [gx, gy] = this.fixed
-    const still = st === 'sleepy' || st === 'bored'
+    if (this.lookThing && !lock)
+      [gx, gy] = thingGaze(face, this.val.x, this.val.alt)
+    if (this.fixed && !lock) [gx, gy] = this.fixed
+    const still = st === 'sleepy' || st === 'bored' || lock
     if (!still && t >= this.saccAt) {
       this.sacc = { gx: rand(-0.17, 0.17), gy: rand(-0.1, 0.1) }
       this.saccAt = t + rand(0.8, 2.6)
@@ -534,7 +611,7 @@ export class Live {
     }
     const w = ATTENTION[st]
     const r = this.rect
-    if (pointer && r && w > 0) {
+    if (pointer && r && w > 0 && !lock) {
       if (r.width > 0) {
         const fx = VB[0] + ((pointer[0] - r.left) / r.width) * VB[2]
         const fy = VB[1] + ((pointer[1] - r.top) / r.height) * VB[3]
@@ -588,6 +665,9 @@ export class Live {
       this.bump('hair', 0.6, 0.12, 0.4, 1.2)
       this.nodAt = t + rand(6.5, 9.5)
     }
+    // the activity's loop, additive after the springs so it stays crisp
+    const loop = activityLoop(this.activity, t, this.phase)
+    for (const c in loop) out[c as Channel] += loop[c as Channel]!
     if ((st === 'sad' || st === 'bored') && Math.random() < dt / 7) {
       this.bump('sy', -0.035, 0.5, 0.25, 0.9)
       this.bump('alt', -0.05, 0.5, 0.25, 0.9)
@@ -664,8 +744,9 @@ export class Live {
     const pose = {
       blink: this.blinkV,
       expression: this.state,
-      activity: 'idle',
-      t: REST_T,
+      activity: this.activity,
+      // reduced motion freezes loops and fx at the static phase
+      t: this.reduced ? REST_T : this.clock,
       wob: 0,
       fx: null,
       fxP: 0,
@@ -675,6 +756,11 @@ export class Live {
     pose.lag = this.reduced
       ? 0
       : clamp((this.lag.y + pose.alt * R) * 0.4, -16, 16)
-    this.write(draw(this.who, pose, this.opts))
+    const ring = this.opts.ring
+    const opts =
+      this.reduced && ring?.pulse
+        ? { ...this.opts, ring: { ...ring, pulse: false } }
+        : this.opts
+    this.write(draw(this.who, pose, opts))
   }
 }

@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@awflow/typescript-config": "workspace:*",
+    "@happy-dom/global-registrator": "^21.0.3",
     "@types/bun": "latest",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
