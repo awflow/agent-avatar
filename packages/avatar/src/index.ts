@@ -14,6 +14,7 @@ export type {
   Channel,
   Cheeks,
   Color,
+  Decor,
   Expression,
   Eyes,
   Eyewear,
@@ -21,6 +22,7 @@ export type {
   Headwear,
   Mouth,
   Neckwear,
+  Prop,
   Trait,
 } from './tables'
 export {
@@ -31,6 +33,7 @@ export {
   GROUPS,
   LATEST,
   PARTS,
+  PROPS,
   VERSIONS,
 } from './tables'
 export type { Ink, Theme } from './themes'

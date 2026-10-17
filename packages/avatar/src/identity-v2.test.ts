@@ -93,12 +93,8 @@ describe('identity v2', () => {
   })
 
   test('golden identities at peek@2', () => {
-    const pick = (n: string) => {
-      const { persona, ...rest } = identify(n)
-      return rest
-    }
     expect(
-      ['Ada Lovelace', 'Linh', 'Đoàn', '東京'].map(pick),
+      ['Ada Lovelace', 'Linh', 'Đoàn', '東京'].map((n) => identify(n)),
     ).toMatchInlineSnapshot(`
       [
         {
@@ -115,6 +111,25 @@ describe('identity v2', () => {
           "motif": "grid",
           "mouth": "cat",
           "neckwear": "none",
+          "persona": {
+            "add": {
+              "browArch": 0.15,
+              "browTilt": -0.91,
+              "browY": 0.5,
+              "gx": 0.08,
+              "hair": 0.04,
+              "my": -1.95,
+              "rot": 0.07,
+            },
+            "blink": 0.77,
+            "mul": {
+              "browW": 1.16,
+              "eyeS": 1.07,
+              "mw": 1.07,
+              "pupil": 1.03,
+            },
+            "spread": 2.53,
+          },
           "trait": "peak",
           "version": 2,
         },
@@ -132,6 +147,25 @@ describe('identity v2', () => {
           "motif": "speckle",
           "mouth": "cat",
           "neckwear": "none",
+          "persona": {
+            "add": {
+              "browArch": -0.08,
+              "browTilt": -1.25,
+              "browY": 0.07,
+              "gx": -0.04,
+              "hair": -0.1,
+              "my": 1.18,
+              "rot": 2.27,
+            },
+            "blink": 0.94,
+            "mul": {
+              "browW": 1.1,
+              "eyeS": 1.08,
+              "mw": 1.09,
+              "pupil": 1.06,
+            },
+            "spread": 2.45,
+          },
           "trait": "peak",
           "version": 2,
         },
@@ -149,6 +183,25 @@ describe('identity v2', () => {
           "motif": "speckle",
           "mouth": "cat",
           "neckwear": "none",
+          "persona": {
+            "add": {
+              "browArch": 0.08,
+              "browTilt": 2.03,
+              "browY": -1.39,
+              "gx": -0.08,
+              "hair": 0.33,
+              "my": 2.24,
+              "rot": -1.93,
+            },
+            "blink": 1.05,
+            "mul": {
+              "browW": 0.98,
+              "eyeS": 0.96,
+              "mw": 0.88,
+              "pupil": 0.97,
+            },
+            "spread": -1.13,
+          },
           "trait": "dot",
           "version": 2,
         },
@@ -166,6 +219,25 @@ describe('identity v2', () => {
           "motif": "glow",
           "mouth": "cat",
           "neckwear": "none",
+          "persona": {
+            "add": {
+              "browArch": 0.1,
+              "browTilt": -0.38,
+              "browY": 2.73,
+              "gx": 0.06,
+              "hair": 0.15,
+              "my": -1.26,
+              "rot": -1.92,
+            },
+            "blink": 1.21,
+            "mul": {
+              "browW": 1.14,
+              "eyeS": 1.06,
+              "mw": 0.93,
+              "pupil": 1.02,
+            },
+            "spread": -0.43,
+          },
           "trait": "square",
           "version": 2,
         },

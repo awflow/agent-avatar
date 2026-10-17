@@ -100,7 +100,10 @@ describe('axes', () => {
       for (const k of changed) expect(k.startsWith(prefix[part])).toBe(true)
     }
     const recolored = settle(name, { color: 'aqua', version: 1 }).who
-    expect({ ...recolored, color: base.color }).toEqual(base)
+    expect({ ...recolored, color: base.color, prop: undefined }).toEqual({
+      ...base,
+      prop: undefined,
+    })
   })
 
   // the stability contract: these must never change at peek@1
@@ -299,8 +302,8 @@ test('different avatars never share ids', () => {
   expect(id(toSvg('ADA '))).toBe(id(a))
   expect(id(toSvg('Ada', { square: false }))).not.toBe(id(a))
   expect(id(toSvg('Ada', { expression: 'happy' }))).not.toBe(id(a))
-  expect(id(toSvg('Ada', { face: 'circle' }))).not.toBe(
-    id(toSvg('Ada', { face: 'triangle' })),
+  expect(id(toSvg('Ada', { face: 'circle', version: 1 }))).not.toBe(
+    id(toSvg('Ada', { face: 'triangle', version: 1 })),
   )
 })
 
@@ -310,7 +313,13 @@ test('every face x part x expression draws clean', () => {
     for (const part of Object.keys(PARTS) as (keyof typeof PARTS)[])
       for (const type of PARTS[part])
         for (const expression of Object.keys(EXPRESSIONS) as Expression[]) {
-          const o = { face, [part]: type, expression, riso: true, size: 300 }
+          const o = {
+            shape: face,
+            [part]: type,
+            expression,
+            riso: true,
+            size: 300,
+          }
           const svg = toSvg('Ada', o)
           expect(bad.test(svg)).toBe(false)
           const { who, pose, opts } = settle('Ada', o, true)
@@ -327,7 +336,7 @@ test('brows never leave the face, even raised on the widest persona', () => {
   for (const face of Object.keys(FACES) as (keyof typeof FACES)[])
     for (const brows of PARTS.brows)
       for (const expression of Object.keys(EXPRESSIONS) as Expression[]) {
-        const { who, opts } = settle('x', { face, brows })
+        const { who, opts } = settle('x', { shape: face, brows })
         const p = who.persona
         who.persona = {
           ...p,
@@ -383,9 +392,11 @@ describe('accessories', () => {
     for (const [slot, list] of Object.entries(ACCESSORIES)) {
       for (const item of list) {
         const dressed = settle('Linh', { [slot]: item, version: 1 }).who
-        expect({ ...dressed, [slot]: base[slot as AccessorySlot] }).toEqual(
-          base,
-        )
+        expect({
+          ...dressed,
+          [slot]: base[slot as AccessorySlot],
+          prop: undefined,
+        }).toEqual({ ...base, prop: undefined })
       }
     }
     expect(toSvg('Linh')).toBe(
@@ -412,7 +423,7 @@ describe('accessories', () => {
             for (const neckwear of ACCESSORIES.neckwear.slice(0, 2)) {
               const { who, opts } = settle(
                 'Linh',
-                { face, trait, eyewear, headwear, neckwear, version: 1 },
+                { shape: face, trait, eyewear, headwear, neckwear, version: 1 },
                 true,
               )
               const reference = keys(draw(who, restPose(who, 'normal'), opts))

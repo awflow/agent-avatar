@@ -12,18 +12,28 @@ import {
   type Pose,
   restPose,
 } from './draw'
-import { type Axes, fnv1a, type Identity, identify } from './identity'
+import { type Axes, fnv1a, type Identity, identify, LISTS } from './identity'
 import {
-  ACCESSORIES,
-  type AccessorySlot,
   COLORS,
   type Color,
+  type Decor,
   type Expression,
+  type Face,
   type Motif,
+  PROPS,
+  type Prop,
 } from './tables'
 import { deepOf, type Ink, parseHex, themeOf } from './themes'
 
-export type AvatarOptions = Omit<Partial<Axes>, 'color'> & {
+export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
+  /** The body silhouette. */
+  shape?: Face
+  /** A face decoration (v2+). Under version 1 it keeps Peek's meaning: the silhouette. */
+  face?: Decor | Face
+  /** 'peek@1' | 'peek@2': pins the version; an explicit version wins. */
+  style?: 'peek@1' | 'peek@2'
+  /** A hand-held prop; never hashed, drawn from Plan 3. */
+  prop?: Prop
   /** A palette slot, or any #rgb / #rrggbb hex for a custom body ink. */
   color?: Color | `#${string}`
   /** Draw this motif; default the hash's, or plain on themes without motifs. */
@@ -51,15 +61,11 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color'> & {
   id?: string
 }
 
-// an unknown item from untyped callers keeps what the name picked
-const wear = <S extends AccessorySlot>(
-  o: AvatarOptions,
-  base: Identity,
-  s: S,
-) =>
-  (ACCESSORIES[s] as readonly string[]).includes(o[s] as string)
-    ? (o[s] as Identity[S])
-    : base[s]
+// an unknown value from untyped callers keeps what the name picked
+const take = <A extends keyof Axes>(axis: A, v: unknown, base: Axes[A]) =>
+  (LISTS[axis] as readonly unknown[]).includes(v) ? (v as Axes[A]) : base
+
+const STYLES = { 'peek@1': 1, 'peek@2': 2 } as const
 
 /**
  * A name decides identity unless the caller overrides an axis: an explicit
@@ -69,8 +75,15 @@ export function settle(
   name: string,
   o: AvatarOptions,
   live = false,
-): { who: Identity; pose: Pose; opts: DrawOptions } {
-  const base = identify(name, { version: o.version, dress: o.dress })
+): { who: Identity & { prop: Prop }; pose: Pose; opts: DrawOptions } {
+  const version =
+    o.version ??
+    (typeof o.style === 'string' && Object.hasOwn(STYLES, o.style)
+      ? STYLES[o.style]
+      : undefined)
+  const base = identify(name, { version, dress: o.dress })
+  // under v1 `face` is the silhouette (Peek's meaning); from v2 it is decor
+  const v1 = base.version < 2
   const theme = themeOf(o.theme)
   const hex = typeof o.color === 'string' ? parseHex(o.color) : null
   const ink: Ink | undefined = hex
@@ -80,21 +93,26 @@ export function settle(
     typeof o.color === 'string' && Object.hasOwn(COLORS, o.color)
       ? (o.color as Color)
       : undefined
-  const who: Identity = {
+  const who: Identity & { prop: Prop } = {
     ...base,
-    face: o.face ?? base.face,
+    face: take('face', o.shape ?? (v1 ? o.face : undefined), base.face),
     color: named ?? base.color,
-    eyes: o.eyes ?? base.eyes,
-    brows: o.brows ?? base.brows,
-    mouth: o.mouth ?? base.mouth,
-    cheeks: o.cheeks ?? base.cheeks,
-    trait: o.trait ?? base.trait,
-    eyewear: wear(o, base, 'eyewear'),
-    headwear: wear(o, base, 'headwear'),
-    neckwear: wear(o, base, 'neckwear'),
+    eyes: take('eyes', o.eyes, base.eyes),
+    brows: take('brows', o.brows, base.brows),
+    mouth: take('mouth', o.mouth, base.mouth),
+    cheeks: take('cheeks', o.cheeks, base.cheeks),
+    trait: take('trait', o.trait, base.trait),
+    eyewear: take('eyewear', o.eyewear, base.eyewear),
+    headwear: take('headwear', o.headwear, base.headwear),
+    neckwear: take('neckwear', o.neckwear, base.neckwear),
     // the theme decides whether the hashed motif is drawn at all
-    motif: o.motif ?? (theme.motifs ? base.motif : 'plain'),
-    decor: wear(o, base, 'decor'),
+    motif: theme.motifs
+      ? take('motif', o.motif, base.motif)
+      : take('motif', o.motif, 'plain'),
+    decor: take('decor', v1 ? o.decor : (o.face ?? o.decor), base.decor),
+    prop: (PROPS as readonly unknown[]).includes(o.prop)
+      ? (o.prop as Prop)
+      : 'none',
   }
   const pose = restPose(who, o.expression ?? 'normal', o.gaze)
   const look = {
@@ -111,7 +129,8 @@ export function settle(
   }
   // Keep the byte-level peek@1 contract: an axis at its v1 default (no
   // wardrobe, plain motif, no decor) stays out of the hashed identity.
-  const hashed: Partial<Identity> = { ...who }
+  const hashed: Partial<Identity & { prop: Prop }> = { ...who }
+  if (who.prop === 'none') delete hashed.prop
   if (who.motif === 'plain') delete hashed.motif
   if (who.decor === 'none') delete hashed.decor
   if (

@@ -256,6 +256,18 @@ export type Neckwear = (typeof ACCESSORIES.neckwear)[number]
 export type Decor = (typeof ACCESSORIES.decor)[number]
 export type AccessorySlot = keyof typeof ACCESSORIES
 
+/** Hand-held props. Never hashed: only a caller picks one (drawn from Plan 3). */
+export const PROPS = [
+  'none',
+  'magnifier',
+  'pencil',
+  'coffee',
+  'bulb',
+  'book',
+  'wrench',
+] as const
+export type Prop = (typeof PROPS)[number]
+
 export type Face = keyof typeof FACES
 export type Color = keyof typeof COLORS
 export type Part = keyof typeof PARTS

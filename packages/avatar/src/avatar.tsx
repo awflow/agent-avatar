@@ -27,7 +27,7 @@ import { Live } from './animate'
 import { draw, type Gaze, type Node, restPose } from './draw'
 import { type AvatarOptions, settle } from './svg'
 
-export type AvatarProps = Omit<AvatarOptions, 'gaze' | 'id'> & {
+export type AvatarProps = Omit<AvatarOptions, 'gaze' | 'id' | 'style'> & {
   name: string
   /** x and y in -1..1, or 'pointer' to follow the pointer (animate only). */
   gaze?: Gaze | 'pointer'
