@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "awflow-avatar-export": "./bin/awflow-avatar-export.mjs"
+  },
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -14,6 +17,7 @@
   },
   "files": [
     "dist",
+    "bin",
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/test/**",

@@ -13,6 +13,9 @@
     "packages/avatar": {
       "name": "@awflow/avatar",
       "version": "0.0.0",
+      "bin": {
+        "awflow-avatar": "./bin/awflow-avatar.mjs",
+      },
       "devDependencies": {
         "@awflow/typescript-config": "workspace:*",
         "@happy-dom/global-registrator": "^21.0.3",
@@ -20,6 +23,12 @@
         "playwright": "1.64.1",
         "typescript": "^6.0.2",
       },
+      "peerDependencies": {
+        "@awflow/avatar-export": "workspace:^",
+      },
+      "optionalPeers": [
+        "@awflow/avatar-export",
+      ],
     },
     "packages/avatar-element": {
       "name": "@awflow/avatar-element",
@@ -38,6 +47,9 @@
     "packages/avatar-export": {
       "name": "@awflow/avatar-export",
       "version": "0.0.0",
+      "bin": {
+        "awflow-avatar-export": "./bin/awflow-avatar-export.mjs",
+      },
       "dependencies": {
         "@awflow/avatar": "workspace:^",
         "@resvg/resvg-wasm": "2.6.2",

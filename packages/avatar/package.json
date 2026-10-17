@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "awflow-avatar": "./bin/awflow-avatar.mjs"
+  },
   "exports": {
     ".": {
       "awflow-src": "./src/index.ts",
@@ -39,6 +42,10 @@
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js",
       "default": "./dist/identity.js"
+    },
+    "./cli": {
+      "awflow-src": "./bin/cli.mjs",
+      "default": "./bin/cli.mjs"
     }
   },
   "scripts": {
@@ -72,6 +79,7 @@
   ],
   "files": [
     "dist",
+    "bin",
     "src/**/*.ts",
     "!src/**/*.test.ts",
     "!src/test/**",
@@ -79,5 +87,13 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "@awflow/avatar-export": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@awflow/avatar-export": {
+      "optional": true
+    }
   }
 }
