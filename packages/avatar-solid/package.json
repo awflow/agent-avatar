@@ -1,0 +1,68 @@
+{
+  "name": "@awflow/avatar-solid",
+  "version": "0.0.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "solid": "./src/index.ts",
+      "worker": "./dist/server.js",
+      "deno": "./dist/server.js",
+      "node": "./dist/server.js",
+      "browser": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/test",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepack": "bun scripts/build.ts",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@awflow/avatar": "workspace:^"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9"
+  },
+  "devDependencies": {
+    "@awflow/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "jsdom": "^25",
+    "solid-js": "^1.9.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.0",
+    "vite-plugin-solid": "^2.11.14",
+    "vitest": "^5"
+  },
+  "description": "Deterministic SVG avatars from a name, as a Solid component.",
+  "license": "MIT",
+  "author": "AWFlow",
+  "homepage": "https://github.com/awflow/avatar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awflow/avatar.git",
+    "directory": "packages/avatar-solid"
+  },
+  "keywords": [
+    "avatar",
+    "svg",
+    "solid",
+    "solid-js",
+    "deterministic",
+    "avatar-library"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

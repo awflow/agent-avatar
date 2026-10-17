@@ -5,8 +5,8 @@ Peek by Doan Labs (MIT) and extended. Turborepo on bun workspaces, Biome,
 TypeScript. Packages: `packages/avatar` (`@awflow/avatar`, core),
 `packages/avatar-svelte` (`@awflow/avatar-svelte`), `packages/avatar-react`
 (`@awflow/avatar-react`), `packages/avatar-vue` (`@awflow/avatar-vue`),
-`packages/typescript-config`. The core never
-imports a framework.
+`packages/avatar-solid` (`@awflow/avatar-solid`),
+`packages/typescript-config`. The core never imports a framework.
 
 `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it. Never replace
 either with a real file.

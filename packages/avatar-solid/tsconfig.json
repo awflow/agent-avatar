@@ -1,0 +1,10 @@
+{
+  "extends": "@awflow/typescript-config/base.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"],
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["bun"]
+  }
+}
