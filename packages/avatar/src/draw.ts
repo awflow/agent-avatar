@@ -1600,7 +1600,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // is state, not identity: it never joins the id, and a live tree always
   // carries the node (opacity 0 with no ring) so it can come and go without
   // a re-render. Framework adapters keep `ring` out of their re-render key.
-  // A pulsing ring breathes only when live; a static one is solid.
+  // A pulsing ring breathes only when live, peaking at the static phase so
+  // the first live frame matches the solid static ring.
   if (o.ring) {
     const p = Number.isFinite(o.ring.progress ?? 1)
       ? clamp(o.ring.progress ?? 1, 0, 1)
@@ -1620,7 +1621,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         transform: arc ? 'rotate(-90 170 170)' : undefined,
         opacity:
           o.live && o.ring.pulse
-            ? f3(0.55 + 0.45 * Math.sin(5 * pose.t))
+            ? f3(0.55 + 0.45 * Math.cos(5 * (pose.t - REST_T)))
             : undefined,
       }),
     )

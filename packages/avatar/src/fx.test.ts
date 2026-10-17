@@ -172,8 +172,10 @@ describe('the ring is state', () => {
     )
     const op = (t: number) =>
       Number(find(draw(who, { ...pose, t }, opts), 'ring')!.attrs.opacity)
-    expect(op(0)).toBeCloseTo(0.55, 3)
-    expect(op(Math.PI / 10)).toBeCloseTo(1, 3)
+    // the static phase is the peak, so the first live frame is solid
+    expect(op(REST_T)).toBeCloseTo(1, 3)
+    expect(op(REST_T + Math.PI / 10)).toBeCloseTo(0.55, 3)
+    expect(op(REST_T + Math.PI / 5)).toBeCloseTo(0.1, 3)
     const still = find(
       treeOf('Linh', { ring: { color: '#F08A24', pulse: true } }),
       'ring',

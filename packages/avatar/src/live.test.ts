@@ -177,6 +177,17 @@ describe('Live.setActivity', () => {
     expect(rig.base.gy).toBeCloseTo(0.35, 6)
   })
 
+  test('a pulsing ring starts at its peak on the first live frame', () => {
+    const { live, svg } = mount('Linh', {
+      ring: { color: '#F08A24', pulse: true },
+    })
+    const ring = Array.from(svg.querySelectorAll('circle')).find(
+      (c) => c.getAttribute('r') === '190',
+    )!
+    expect(ring.getAttribute('opacity')).toBe('1')
+    live.destroy()
+  })
+
   test('setRing shows and hides the ring node', () => {
     const { live, svg } = mount('Linh')
     const ring = () =>
