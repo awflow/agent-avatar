@@ -1,6 +1,6 @@
 # @awflow/avatar
 
-Deterministic SVG avatars from a name: the same input renders the same bytes on the server and the client, with a React and a Svelte component on top.
+Deterministic SVG avatars from a name: the same input renders the same bytes on the server and the client, with React, Svelte, Vue and Solid components, a custom element, a raster export package and a CLI on top.
 
 ```sh
 npm install @awflow/avatar

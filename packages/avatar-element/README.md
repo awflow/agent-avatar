@@ -3,6 +3,10 @@
 Deterministic SVG avatars from a name, as `<awf-avatar>` custom elements. Built
 on [Peek](https://peek.doan-labs.com) by Doan Labs.
 
+```sh
+npm install @awflow/avatar-element @awflow/avatar
+```
+
 ```html
 <script type="module">
   import '@awflow/avatar-element' // defines <awf-avatar> and <awf-avatar-group>
@@ -40,3 +44,11 @@ Properties `ring`, `gaze`, `reaction` and `reactKey` accept objects directly.
 
 `defineAvatarElements(prefix = 'awf')` registers the tags under another prefix.
 Importing in Node is safe and defines nothing.
+
+## Docs
+
+Full documentation: <https://github.com/awflow/avatar#readme>
+
+## License
+
+Built on Peek by Doan Labs. [MIT](./LICENSE) © Doan Labs, © AWFlow

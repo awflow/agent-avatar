@@ -65,9 +65,15 @@ that names the limit.
 GIF counts time in hundredths of a second and browsers slow down frames
 shorter than 2/100 s, so keep GIFs at 50 fps or less. APNG timing is exact.
 
+## Docs
+
+Full documentation: <https://github.com/awflow/avatar#readme>
+
 ## Credits
 
 Built on Peek by Doan Labs (MIT). Rasterising by
 [resvg](https://github.com/linebender/resvg), GIF encoding by
 [gifenc](https://github.com/mattdesl/gifenc), compression by
 [fflate](https://github.com/101arrowz/fflate).
+
+[MIT](./LICENSE) © Doan Labs, © AWFlow

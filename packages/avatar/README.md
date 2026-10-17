@@ -6,34 +6,44 @@ A name in, a face out. Deterministic SVG avatars. Built on [Peek](https://peek.d
 npm install @awflow/avatar
 ```
 
-## Framework components
-
-The core renders plain SVG and has no framework dependency. For components:
-
-- React: [`@awflow/avatar-react`](../avatar-react)
-- Svelte: [`@awflow/avatar-svelte`](../avatar-svelte)
-
 ```js
 import { toSvg } from '@awflow/avatar'
 
 const svg = toSvg('Linh', { size: 96, expression: 'happy' })
 ```
 
-## Accessories
+Full documentation: <https://github.com/awflow/avatar#readme>
 
-Dress a face with three independent slots:
+## Framework components
+
+The core renders plain SVG and has no framework dependency. For components:
+
+- React: [`@awflow/avatar-react`](https://www.npmjs.com/package/@awflow/avatar-react)
+- Svelte: [`@awflow/avatar-svelte`](https://www.npmjs.com/package/@awflow/avatar-svelte)
+- Vue: [`@awflow/avatar-vue`](https://www.npmjs.com/package/@awflow/avatar-vue)
+- Solid: [`@awflow/avatar-solid`](https://www.npmjs.com/package/@awflow/avatar-solid)
+- Custom elements: [`@awflow/avatar-element`](https://www.npmjs.com/package/@awflow/avatar-element)
+- PNG, APNG, GIF and sprites: [`@awflow/avatar-export`](https://www.npmjs.com/package/@awflow/avatar-export)
+
+## Wardrobe
+
+Dress a face with independent slots and a held prop:
 
 ```js
 toSvg('Linh', { eyewear: 'glasses', headwear: 'bow' })
-toSvg('Linh', { eyewear: 'sunglasses', headwear: 'sprout' })
-toSvg('Linh', { headwear: 'cap', neckwear: 'tie' })
+toSvg('Linh', { eyewear: 'visor', headwear: 'wizard', prop: 'coffee' })
+toSvg('Linh', { headwear: 'cap', neckwear: 'scarf', face: 'freckles' })
+toSvg('Linh', { dress: true }) // let the name pick the wardrobe
 ```
 
-Eyewear: `none`, `glasses`, `sunglasses`. Headwear: `none`, `bow`, `cap`,
-`sprout`. Neckwear: `none`, `tie`. All default to `none` at `peek@1`, so
-existing avatars stay unchanged. Slots combine and work with every
-expression, gaze and frame. The framework components take the same options
-as props.
+Eyewear: `glasses`, `sunglasses`, `monocle`, `visor`, `patch`, `cateye`.
+Headwear: `bow`, `cap`, `sprout`, `beanie`, `headphones`, `antenna`,
+`crown`, `wizard`, `party`, `halo`, `beret`, `chef`. Neckwear: `tie`,
+`bowtie`, `scarf`, `necklace`, `badge`. Face decor (`face`): `freckles`,
+`mustache`, `bandaid`, `sticker`. Props: `magnifier`, `pencil`, `coffee`,
+`bulb`, `book`, `wrench`. Every slot defaults to `none`, so existing
+avatars stay unchanged. The framework components take the same options as
+props.
 
 ## Plain SVG and identity entry points
 
@@ -49,11 +59,6 @@ const identity = identify('Linh')
 
 The root entry point also exports `toSvg` and `identify`.
 The same normalized name and options produce the same SVG every time.
-
-
-## License
-
-[MIT](./LICENSE) © Doan Labs, © AWFlow
 
 ## Command line
 
@@ -83,3 +88,7 @@ awflow-avatar sheet names.txt --sprite --size 64 > team.png
 Without it, `--png`, `--gif` and `--sprite` print
 `Install @awflow/avatar-export for --png/--gif/--sprite` and exit 1. The CLI
 runs on Node 20 or later and uses no dependencies.
+
+## License
+
+Built on Peek by Doan Labs. [MIT](./LICENSE) © Doan Labs, © AWFlow

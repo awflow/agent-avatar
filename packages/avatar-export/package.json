@@ -18,10 +18,8 @@
   "files": [
     "dist",
     "bin",
-    "src/**/*.ts",
-    "!src/**/*.test.ts",
-    "!src/test/**",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "bun scripts/build.ts",

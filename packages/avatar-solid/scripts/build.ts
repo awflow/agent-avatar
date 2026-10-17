@@ -3,6 +3,11 @@
  * (dist/index.js) and a server build for renderToString (dist/server.js),
  * both through vite-plugin-solid, plus declarations. Solid and
  * @awflow/avatar stay external: one copy of each, the app's.
+ *
+ * Solid consumers (the `solid` export condition) get dist/source instead:
+ * the TypeScript stripped with the JSX left in, the way Solid libraries
+ * publish, so the app's own Solid compiler builds the components for its
+ * target (DOM, SSR, hydration) and its version of solid-js.
  */
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -56,7 +61,49 @@ for (const file of await readdir(outdir, { recursive: true })) {
   )
 }
 
+// the JSX-preserving source for the `solid` condition
+const source = resolve(outdir, 'source')
+const strip = Bun.spawn(
+  [
+    'bunx',
+    'tsc',
+    '-p',
+    'tsconfig.build.json',
+    '--outDir',
+    source,
+    '--emitDeclarationOnly',
+    'false',
+    '--declaration',
+    'false',
+    '--allowImportingTsExtensions',
+    'false',
+  ],
+  { stdout: 'inherit', stderr: 'inherit' },
+)
+if (await strip.exited) process.exit(1)
+
+// explicit extensions, so any resolver finds the .jsx files
+const emitted = new Set(await readdir(source))
+for (const file of emitted) {
+  const path = resolve(source, file)
+  const text = await readFile(path, 'utf8')
+  await writeFile(
+    path,
+    text.replace(
+      /(from\s+['"])(\.\/[^'"]+?)(['"])/g,
+      (all, a: string, spec: string, b: string) => {
+        const base = spec.slice(2)
+        for (const ext of ['.jsx', '.js'])
+          if (emitted.has(base + ext)) return `${a}./${base}${ext}${b}`
+        return all
+      },
+    ),
+  )
+}
+
 // the server build has the same api, so the same declarations
 await writeFile(resolve(outdir, 'server.d.ts'), "export * from './index.js'\n")
 
-console.log(`built index.js, server.js and declarations into ${outdir}`)
+console.log(
+  `built index.js, server.js, source/ and declarations into ${outdir}`,
+)

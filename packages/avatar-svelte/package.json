@@ -16,9 +16,11 @@
   "files": [
     "dist",
     "src",
+    "!dist/**/*.test.*",
     "!src/**/*.test.ts",
     "!src/**/*.test.svelte.ts",
-    "!dist/**/*.test.*"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "dev": "vite",

@@ -55,6 +55,10 @@ Bind the component (`bind:this={avatar}`) to call:
 - `getHandle()`: the core handle once mounted, `null` before.
 - `getElement()`: the `<svg>` showing the avatar, `null` before mount.
 
+## Docs
+
+Full documentation: <https://github.com/awflow/avatar#readme>
+
 ## License
 
-MIT
+Built on Peek by Doan Labs. [MIT](./LICENSE) © Doan Labs, © AWFlow
