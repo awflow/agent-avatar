@@ -33,11 +33,13 @@ const STRINGS = [
 /** The option name each observed attribute maps to. */
 export const ATTRIBUTES: Record<string, keyof MountOptions> = {
   ...Object.fromEntries(
-    [...NUMBERS, ...BOOLEANS, ...STRINGS, 'gaze', 'fx', 'ring', 'title'].map(
-      (k) => [k, k as keyof MountOptions],
-    ),
+    [...NUMBERS, ...BOOLEANS, ...STRINGS, 'gaze', 'fx', 'ring'].map((k) => [
+      k,
+      k as keyof MountOptions,
+    ]),
   ),
   'react-key': 'reactKey',
+  label: 'title',
 }
 
 const clamp = (n: number) => Math.max(-1, Math.min(1, n))
@@ -61,10 +63,7 @@ export function parseAttribute(attr: string, text: string | null): Parsed {
   const key = ATTRIBUTES[attr]
   if (!key) return
   if (text === null) {
-    return {
-      key,
-      value: BOOLEANS.has(attr) && attr !== 'square' ? false : undefined,
-    }
+    return { key, value: undefined }
   }
   if (BOOLEANS.has(attr)) return { key, value: text !== 'false' }
   if (NUMBERS.has(attr)) {
@@ -93,6 +92,6 @@ export function parseAttribute(attr: string, text: string | null): Parsed {
         text === 'false' ? false : text === '' || text === 'true' ? true : text,
     }
   }
-  if (attr === 'title') return { key, value: text === 'false' ? false : text }
+  if (attr === 'label') return { key, value: text === 'false' ? false : text }
   return { key, value: text }
 }

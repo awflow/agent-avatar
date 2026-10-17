@@ -21,11 +21,23 @@ const HANDLE = Symbol.for('awflow.avatar.element.handle')
 const JOIN = Symbol.for('awflow.avatar.element.join')
 const LEAVE = Symbol.for('awflow.avatar.element.leave')
 const GROUP = Symbol.for('awflow.avatar.element.group')
+const NOTIFY = Symbol.for('awflow.avatar.element.notify')
+
+/* a property set before the element was defined shadows its accessor */
+function upgradeProperties(el: object, keys: string[]): void {
+  for (const k of keys) {
+    if (!Object.hasOwn(el, k)) continue
+    const v = (el as Record<string, unknown>)[k]
+    delete (el as Record<string, unknown>)[k]
+    ;(el as Record<string, unknown>)[k] = v
+  }
+}
 
 type Joinable = {
   [HANDLE]: AvatarHandle | null
   [JOIN](): void
   [LEAVE](): void
+  [NOTIFY]: Set<{ aim(): void }>
 }
 type GroupHost = {
   [GROUP]: Group
@@ -69,7 +81,26 @@ export function createElements(): {
     private opts: Record<string, unknown> = {}
     private mounted: AvatarHandle | null = null
     private leaveGroup: (() => void) | null = null
-    private lookTarget: AvatarHandle | Element | null = null
+    private lookTarget: AwfAvatarElement | AvatarHandle | Element | null = null
+    private rendered = false
+    readonly [NOTIFY] = new Set<{ aim(): void }>()
+
+    constructor() {
+      super()
+      upgradeProperties(this, ['ring', 'gaze', 'reaction', 'reactKey'])
+    }
+
+    /** Points the gaze at the current target; the target's handle is resolved now. */
+    aim(): void {
+      const t = this.lookTarget
+      this.mounted?.lookAt(
+        (isAvatar(t) ? t[HANDLE] : t) as AvatarHandle | Element | null,
+      )
+    }
+
+    private changed(): void {
+      for (const w of this[NOTIFY]) w.aim()
+    }
 
     get handle(): AvatarHandle | null {
       return this.mounted
@@ -80,6 +111,13 @@ export function createElements(): {
     }
 
     connectedCallback(): void {
+      // some upgrade paths skip attributeChangedCallback for existing attributes
+      for (const attr of Object.keys(ATTRIBUTES)) {
+        const p = this.hasAttribute(attr)
+          ? parseAttribute(attr, this.getAttribute(attr))
+          : undefined
+        if (p && !(p.key in this.opts)) this.opts[p.key] = p.value
+      }
       this.mountNow()
     }
 
@@ -87,6 +125,7 @@ export function createElements(): {
       this[LEAVE]()
       this.mounted?.destroy()
       this.mounted = null
+      this.changed()
     }
 
     attributeChangedCallback(
@@ -128,15 +167,20 @@ export function createElements(): {
         return
       }
       this.mounted = mount(this, this.opts as MountOptions)
-      if (this.lookTarget) this.mounted.lookAt(this.lookTarget)
+      this.rendered = true
+      this.aim()
       this[JOIN]()
+      this.changed()
     }
 
     private unmount(): void {
       this[LEAVE]()
       this.mounted?.destroy()
       this.mounted = null
-      this.replaceChildren()
+      // only our own svg is cleared, never the user's fallback content
+      if (this.rendered) this.replaceChildren()
+      this.rendered = false
+      this.changed()
     }
 
     [JOIN](): void {
@@ -159,7 +203,7 @@ export function createElements(): {
       if (!this.leaveGroup) return
       this.leaveGroup()
       this.leaveGroup = null
-      this.mounted?.lookAt(this.lookTarget)
+      this.aim()
     }
 
     react(name: NonNullable<MountOptions['reaction']>): void {
@@ -175,9 +219,11 @@ export function createElements(): {
     }
 
     lookAt(target: AwfAvatarElement | AvatarHandle | Element | null): void {
-      const t = isAvatar(target) ? target[HANDLE] : target
-      this.lookTarget = t as AvatarHandle | Element | null
-      this.mounted?.lookAt(this.lookTarget)
+      if (isAvatar(this.lookTarget)) this.lookTarget[NOTIFY].delete(this)
+      this.lookTarget = target
+      // follow the target's handle as it mounts, moves and remounts
+      if (isAvatar(target)) target[NOTIFY].add(this)
+      this.aim()
     }
 
     get ring(): MountOptions['ring'] {
@@ -212,6 +258,11 @@ export function createElements(): {
     }
 
     readonly [GROUP]: Group = createGroup()
+
+    constructor() {
+      super()
+      upgradeProperties(this, ['speaker'])
+    }
 
     get speaker(): string | null {
       return this.getAttribute('speaker')

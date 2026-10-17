@@ -13,6 +13,7 @@ type El = HTMLElement & {
   setVoice(f: (() => number) | null): void
   lookAt(t: unknown): void
   ring: unknown
+  gaze: unknown
 }
 
 const make = (html: string) => {
@@ -144,6 +145,8 @@ describe('attribute parsing', () => {
     el.setAttribute('animate', '')
     expect(set).toHaveBeenLastCalledWith({ animate: true })
     el.removeAttribute('animate')
+    expect(set).toHaveBeenLastCalledWith({ animate: undefined })
+    el.setAttribute('animate', 'false')
     expect(set).toHaveBeenLastCalledWith({ animate: false })
     el.setAttribute('riso', 'riso')
     expect(set).toHaveBeenLastCalledWith({ riso: true })
@@ -173,6 +176,8 @@ describe('attribute parsing', () => {
     expect(set).toHaveBeenLastCalledWith({ expression: 'happy' })
     el.setAttribute('react-key', '7')
     expect(set).toHaveBeenLastCalledWith({ reactKey: '7' })
+    el.setAttribute('label', 'Ada, host')
+    expect(set).toHaveBeenLastCalledWith({ title: 'Ada, host' })
     el.setAttribute('fx', 'false')
     expect(set).toHaveBeenLastCalledWith({ fx: false })
   })
@@ -327,5 +332,79 @@ describe('group', () => {
     expect(look).toHaveBeenLastCalledWith(
       avatar(document.body as never, 2).handle,
     )
+  })
+})
+
+describe('upgrade and fallbacks', () => {
+  it('applies properties set before the element is defined', () => {
+    const early = document.createElement('qq-avatar') as El
+    early.setAttribute('name', 'Ada')
+    early.ring = { color: '#123456' }
+    early.gaze = [0.5, 0]
+    const g = document.createElement('qq-avatar-group') as HTMLElement & {
+      speaker: string | null
+    }
+    g.speaker = 'Ada'
+    g.appendChild(early)
+    document.body.appendChild(g)
+    defineAvatarElements('qq')
+    expect(Object.hasOwn(early, 'ring')).toBe(false)
+    expect(early.ring).toEqual({ color: '#123456' })
+    expect(early.getAttribute('ring')).toBeNull()
+    expect(early.querySelector('svg')).toBeTruthy()
+    expect(g.getAttribute('speaker')).toBe('Ada')
+  })
+
+  it('keeps fallback content until an svg is mounted', () => {
+    const host = make('<awf-avatar>fallback</awf-avatar>')
+    const el = avatar(host)
+    el.setAttribute('size', '40')
+    expect(el.textContent).toBe('fallback')
+    el.setAttribute('name', 'Ada')
+    expect(el.textContent).toBe('')
+  })
+})
+
+describe('lookAt follows its target', () => {
+  it('a target that is not mounted yet', () => {
+    const host = make('<awf-avatar name="Ada"></awf-avatar>')
+    const a = avatar(host)
+    const b = document.createElement('awf-avatar') as El
+    const look = vi.spyOn(a.handle!, 'lookAt')
+    a.lookAt(b)
+    expect(look).toHaveBeenLastCalledWith(null)
+    b.setAttribute('name', 'Linh')
+    host.appendChild(b)
+    expect(look).toHaveBeenLastCalledWith(b.handle)
+  })
+
+  it('a target that is moved', () => {
+    const host = make(
+      '<awf-avatar name="Ada"></awf-avatar><awf-avatar name="Linh"></awf-avatar><div id="d"></div>',
+    )
+    const a = avatar(host, 0)
+    const b = avatar(host, 1)
+    const look = vi.spyOn(a.handle!, 'lookAt')
+    a.lookAt(b)
+    host.querySelector('#d')!.appendChild(b)
+    expect(b.handle).toBeTruthy()
+    expect(look).toHaveBeenLastCalledWith(b.handle)
+    b.remove()
+    expect(look).toHaveBeenLastCalledWith(null)
+  })
+
+  it('a target that is renamed', () => {
+    const host = make(
+      '<awf-avatar name="Ada"></awf-avatar><awf-avatar name="Linh"></awf-avatar>',
+    )
+    const a = avatar(host, 0)
+    const b = avatar(host, 1)
+    a.lookAt(b)
+    const look = vi.spyOn(a.handle!, 'lookAt')
+    b.setAttribute('name', 'Sam')
+    b.setAttribute('shape', 'cube')
+    a.lookAt(b)
+    expect(look).toHaveBeenLastCalledWith(b.handle)
+    expect(b.handle).toBeTruthy()
   })
 })
