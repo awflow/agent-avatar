@@ -5,6 +5,8 @@
  * a name-in, SVG-out surface.
  */
 
+export type { Activity, FxKind } from './activity'
+export { ACTIVITIES, activityLoop, blend } from './activity'
 export { Live } from './animate'
 export {
   type DrawOptions,

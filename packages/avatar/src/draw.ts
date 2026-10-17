@@ -9,13 +9,19 @@
  * what is invisible (opacity 0) to stay small.
  */
 
+import {
+  ACTIVITIES,
+  type Activity,
+  activityLoop,
+  blend,
+  type FxKind,
+} from './activity'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import {
   ACCESSORY_INK,
   type Channel,
   type Channels,
   COLORS,
-  EXPRESSIONS,
   type Expression,
   FACES,
   type FaceGeom,
@@ -45,6 +51,9 @@ export type Framing = 'peek' | 'full'
 export type Ring = { color: string; progress?: number; pulse?: boolean }
 export type Gaze = readonly [x: number, y: number]
 
+/** The static phase of every activity loop, in seconds. */
+export const REST_T = 0.9
+
 export type Pose = Channels & {
   /** 0..1, the blink closing both lids. */
   blink: number
@@ -52,6 +61,18 @@ export type Pose = Channels & {
   lag: number
   /** The ring thickens when angry: the one place a state is read by name. */
   expression: Expression
+  /** What the agent is doing; layered over the expression. */
+  activity: Activity
+  /** Seconds on the activity loop clock; 0.9 is the static phase. */
+  t: number
+  /** Wobble energy for the live rig; 0 is still. */
+  wob: number
+  /** The overlay being drawn, if any. */
+  fx: FxKind | null
+  /** 0..1 progress of that overlay. */
+  fxP: number
+  /** 0..1 mouth open from lip-sync, -1 for none. */
+  voice: number
 }
 
 export type DrawOptions = {
@@ -143,14 +164,36 @@ export function restPose(
   who: Pick<Axes, 'face'>,
   expression: Expression,
   gaze?: Gaze,
+  activity: Activity = 'idle',
 ): Pose {
-  const s = EXPRESSIONS[expression]
-  const pose: Pose = { ...s, blink: 0, lag: 0, expression }
+  const s = blend(expression, activity)
+  const pose: Pose = {
+    ...s,
+    blink: 0,
+    lag: 0,
+    expression,
+    activity,
+    t: REST_T,
+    wob: 0,
+    fx: null,
+    fxP: 0,
+    voice: -1,
+  }
   // the choreography's last key leaves curious leaning 7, not the table's 6
-  if (expression === 'curious') pose.rot = 7
+  if (expression === 'curious' && activity === 'idle') pose.rot = 7
+  // idle adds no loop to the static pose, so v1 and v2 bytes hold
+  if (activity !== 'idle') {
+    const loop = activityLoop(activity, REST_T, 0)
+    for (const k in loop) {
+      if (k === 'alt' || k === 'x') continue
+      pose[k as Channel] += loop[k as Channel]!
+    }
+  }
   const g =
     gaze ??
-    (expression === 'curious' ? thingGaze(FACES[who.face], 0, s.alt) : null)
+    (expression === 'curious' && !ACTIVITIES[activity].lockGaze
+      ? thingGaze(FACES[who.face], 0, s.alt)
+      : null)
   if (g) [pose.gx, pose.gy] = g
   return pose
 }

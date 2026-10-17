@@ -3,6 +3,7 @@
  * any machine. Shares its defaults with <Avatar> through settle().
  */
 
+import { type Activity, activityOf } from './activity'
 import {
   type DrawOptions,
   draw,
@@ -11,6 +12,7 @@ import {
   type Gaze,
   type Node,
   type Pose,
+  REST_T,
   type Ring,
   restPose,
 } from './draw'
@@ -45,6 +47,8 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color' | 'face'> & {
   /** px. Drives the stroke ramp (thicker below 96) and the riso print. */
   size?: number
   expression?: Expression
+  /** What the agent is doing, layered over the expression. Unknown is idle. */
+  activity?: Activity
   /** Where the eyes look, x and y in -1..1. */
   gaze?: Gaze
   frame?: Frame
@@ -125,7 +129,12 @@ export function settle(
       ? (o.prop as Prop)
       : 'none',
   }
-  const pose = restPose(who, o.expression ?? 'normal', o.gaze)
+  const pose = restPose(
+    who,
+    o.expression ?? 'normal',
+    o.gaze,
+    activityOf(o.activity),
+  )
   const look = {
     size: o.size ?? 64,
     frame: o.frame ?? (theme.name === 'soft' ? 'ink' : 'theme'),
@@ -168,9 +177,17 @@ export function settle(
     delete hashed.headwear
     delete hashed.neckwear
   }
+  // new pose fields join the id only off their defaults: existing ids hold
+  const hp: Partial<Pose> = { ...pose }
+  if (pose.activity === 'idle') delete hp.activity
+  if (pose.t === REST_T) delete hp.t
+  if (pose.wob === 0) delete hp.wob
+  if (pose.fx === null) delete hp.fx
+  if (pose.fxP === 0) delete hp.fxP
+  if (pose.voice === -1) delete hp.voice
   const id =
     o.id ??
-    `${who.version >= 2 ? 'awf' : 'peek'}-${fnv1a(JSON.stringify([hashed, pose, { ...look, ...extra }])).toString(36)}`
+    `${who.version >= 2 ? 'awf' : 'peek'}-${fnv1a(JSON.stringify([hashed, hp, { ...look, ...extra }])).toString(36)}`
   return {
     who,
     pose,

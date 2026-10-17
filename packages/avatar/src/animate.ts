@@ -18,6 +18,7 @@ import {
   type Gaze,
   type Node,
   type Pose,
+  REST_T,
   restPose,
   smooth,
   thingGaze,
@@ -660,7 +661,16 @@ export class Live {
 
   private paint() {
     const R = frameOf(FACES[this.who.face]).R
-    const pose = { blink: this.blinkV, expression: this.state } as Pose
+    const pose = {
+      blink: this.blinkV,
+      expression: this.state,
+      activity: 'idle',
+      t: REST_T,
+      wob: 0,
+      fx: null,
+      fxP: 0,
+      voice: -1,
+    } as Pose
     for (const c of CHANNELS) pose[c] = this.val[c] + this.out[c]
     pose.lag = this.reduced
       ? 0

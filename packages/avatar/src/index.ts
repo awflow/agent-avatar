@@ -1,3 +1,5 @@
+export type { Activity, FxKind } from './activity'
+export { ACTIVITIES, activityLoop, blend } from './activity'
 export type { AvatarProps } from './avatar'
 export { Avatar } from './avatar'
 export type {
