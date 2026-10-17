@@ -388,6 +388,30 @@ describe('Live lip-sync', () => {
     b.live.destroy()
   })
 
+  test('a pulse outside speaking is ignored, so speech starts on the flap', () => {
+    const { live, rig } = mount('Linh', { activity: 'listening' })
+    live.pulse()
+    expect(rig.pulseAt).toBe(-1)
+    live.setActivity('speaking')
+    live.step(1 / 60)
+    expect(rig.voice).toBe(-1)
+    live.destroy()
+  })
+
+  test('changing activity clears a pending pulse', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' })
+    frames(live, 5)
+    live.pulse()
+    live.step(1 / 60)
+    expect(rig.voice).toBeGreaterThan(0)
+    live.setActivity('listening')
+    live.setActivity('speaking')
+    live.step(1 / 60)
+    // no stale hold keeps the mouth shut on speech start
+    expect(rig.voice).toBe(-1)
+    live.destroy()
+  })
+
   test('null removes the source and the node count never changes', () => {
     const { live, count } = mount('Linh', { activity: 'speaking' })
     const n = count()

@@ -564,6 +564,8 @@ export class Live {
     const a = activityOf(activity)
     if (a === this.activity) return
     this.activity = a
+    // a pulse belongs to the speech it came with: none carries over
+    this.pulseAt = -1
     if (this.reduced) {
       this.snap()
       return
@@ -660,11 +662,12 @@ export class Live {
 
   /**
    * One token or chunk of speech: opens the mouth by `strength` (0..1,
-   * default 1) and lets it close over 120 ms. Under reduced motion, which
-   * freezes the loops the mouth rides on, it does nothing.
+   * default 1) and lets it close over 120 ms. It does nothing unless the
+   * avatar is speaking, or under reduced motion, which freezes the loops the
+   * mouth rides on.
    */
   pulse(strength = 1) {
-    if (this.reduced) return
+    if (this.reduced || this.activity !== 'speaking') return
     this.pulseAmt = Number.isFinite(strength) ? clamp(strength, 0, 1) : 1
     this.pulseAt = this.clock
   }
