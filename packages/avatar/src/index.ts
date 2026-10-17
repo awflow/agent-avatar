@@ -17,6 +17,9 @@ export type { FxAnchor, FxKind, FxShape } from './fx'
 export { FX_KINDS, fxShapes } from './fx'
 export type { Axes, Identity, Persona } from './identity'
 export { AXES, identify, LISTS, tidy } from './identity'
+export type { AvatarHandle, MountOptions } from './mount'
+/** A live or static avatar in any element, with an imperative handle. */
+export { attach, isIdentityChange, mount } from './mount'
 /** For plugin authors: build a drawing-tree node. */
 export { el } from './node'
 export type { SwingSpec } from './physics'

@@ -47,6 +47,39 @@ function run() {
   raf = requestAnimationFrame(tick)
 }
 
+/** How many avatars are bound and how many the loop steps. For tests. */
+export function liveCount(): { all: number; live: number } {
+  return { all: ALL.size, live: LIVE.size }
+}
+
+/**
+ * Throws unless `el` shows `node` element for element: the same tags and
+ * the same number of children all the way down. `what` names the tree in the
+ * message ('live' or 'static').
+ */
+export function correspond(
+  node: Node,
+  el: Element,
+  what: string,
+  here = node.tag,
+) {
+  const tag = el.localName || el.tagName
+  if (
+    tag.toLowerCase() !== node.tag.toLowerCase() ||
+    el.children.length !== node.children.length
+  )
+    throw new Error(
+      `@awflow/avatar: the <svg> does not match the ${what} tree at ${here}: expected <${node.tag}> with ${node.children.length} children, found <${tag}> with ${el.children.length}. ${
+        what === 'live'
+          ? 'An animated avatar must be server-rendered from the live tree (settle(name, opts, true) and draw), not toSvg, with the same options and plugins.'
+          : 'Render it with toSvg and the same options and plugins.'
+      }`,
+    )
+  node.children.forEach((c, i) => {
+    correspond(c, el.children[i]!, what, `${here} > ${c.tag}[${i}]`)
+  })
+}
+
 /* prefers-reduced-motion, watched once for every avatar */
 let motionQuery: MediaQueryList | null = null
 function reducedMotion() {
@@ -114,6 +147,8 @@ export class Live {
       },
       Math.random,
     )
+    // a mismatched DOM throws here, before anything is registered
+    correspond(tree, svg, 'live')
     this.bind(tree, svg)
     this.watch = gaze === 'pointer'
     if (this.watch) listen()
@@ -188,8 +223,9 @@ export class Live {
   }
 
   /**
-   * Pairs every node in the tree with the element React rendered for it,
-   * and remembers what that element shows now, which is not always `node`.
+   * Pairs every node in the tree with the element rendered for it (checked
+   * by correspond() first), and remembers what that element shows now,
+   * which is not always `node`.
    */
   private bind(node: Node, el: Element) {
     this.nodes.set(node.key, el)
@@ -198,8 +234,7 @@ export class Live {
       if (a.name !== 'class' && a.name !== 'style') now[a.name] = a.value
     this.prev.set(node.key, now)
     node.children.forEach((c, i) => {
-      const child = el.children[i]
-      if (child) this.bind(c, child)
+      this.bind(c, el.children[i]!)
     })
   }
 

@@ -428,6 +428,31 @@ describe('accessories', () => {
     node.key,
     ...node.children.flatMap(treeKeys),
   ]
+  // JSON.stringify drops undefined values, so the regex below cannot see
+  // them: every attribute is checked to be a real string instead
+  const badAttrs = (node: Node, out: string[] = []): string[] => {
+    for (const k in node.attrs) {
+      const v = node.attrs[k] as unknown
+      if (typeof v !== 'string' || v === 'undefined')
+        out.push(`${node.key}.${k}=${String(v)}`)
+    }
+    for (const c of node.children) badAttrs(c, out)
+    return out
+  }
+
+  test('the attribute check sees undefined values', () => {
+    const tree: Node = {
+      tag: 'svg',
+      key: 'root',
+      attrs: {},
+      children: [
+        { tag: 'g', key: 'a', attrs: { x: undefined as never }, children: [] },
+        { tag: 'g', key: 'b', attrs: { y: 'undefined' }, children: [] },
+      ] as Node[],
+    }
+    expect(badAttrs(tree)).toEqual(['a.x=undefined', 'b.y=undefined'])
+  })
+
   const stableAcrossExpressions = (o: object) => {
     const { who, opts } = settle('Linh', o, true)
     const reference = treeKeys(draw(who, restPose(who, 'normal'), opts))
@@ -435,6 +460,7 @@ describe('accessories', () => {
       const tree = draw(who, restPose(who, expression, [-1, 1]), opts)
       expect(treeKeys(tree)).toEqual(reference)
       expect(/NaN|Infinity|undefined/.test(JSON.stringify(tree))).toBe(false)
+      expect(badAttrs(tree)).toEqual([])
     }
   }
 
@@ -530,6 +556,9 @@ describe('adapter subpath', () => {
     expect(typeof adapter.Live).toBe('function')
     expect(typeof adapter.Rig).toBe('function')
     expect(typeof adapter.frames).toBe('function')
+    expect(typeof adapter.mount).toBe('function')
+    expect(typeof adapter.attach).toBe('function')
+    expect(typeof adapter.isIdentityChange).toBe('function')
   })
 
   test('the main entry stays frozen', () => {
@@ -541,6 +570,10 @@ describe('adapter subpath', () => {
     expect(typeof (entry as Record<string, unknown>).frames).toBe('function')
     // deliberately added in Plan 3: what a plugin author draws with
     for (const name of ['el', 'crownTop', 'swingOf'])
+      expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')
+    // deliberately added in Plan 4: the framework-free live handle every
+    // adapter wraps
+    for (const name of ['mount', 'attach', 'isIdentityChange'])
       expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')
     expect(Object.keys(entry).sort()).toMatchSnapshot()
   })

@@ -18,6 +18,13 @@ export {
   restPose,
 } from './draw'
 export {
+  type AvatarHandle,
+  attach,
+  isIdentityChange,
+  type MountOptions,
+  mount,
+} from './mount'
+export {
   plugins,
   registerPlugins,
 } from './plugins'

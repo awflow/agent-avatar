@@ -74,3 +74,42 @@ test('a plugin registered through index reaches adapter and ai', async () => {
   expect(schema.properties.headwear.enum).toContain('smoke-hat')
   expect(schema.properties.theme.enum).toContain('smoke-theme')
 })
+
+/* the built dist decides at runtime, so a consumer's production build (or
+ * NODE_ENV=production on a server) stays silent */
+async function warnsWith(env: string | undefined): Promise<string> {
+  const script = `
+    const warns = []
+    console.warn = (m) => warns.push(String(m))
+    const { toSvg } = await import(${JSON.stringify(join(out, 'index.js'))})
+    toSvg('Ada', { headwear: 'no-such-hat' })
+    process.stdout.write(warns.join('\\n'))
+  `
+  const vars: Record<string, string | undefined> = { ...process.env }
+  if (env === undefined) delete vars.NODE_ENV
+  else vars.NODE_ENV = env
+  const run = Bun.spawn(['bun', '-e', script], {
+    cwd: root,
+    env: vars,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const code = await run.exited
+  if (code) throw new Error(await new Response(run.stderr).text())
+  return new Response(run.stdout).text()
+}
+
+test('the built dist warns in development only', async () => {
+  expect(await warnsWith('production')).toBe('')
+  expect(await warnsWith('development')).toContain('no-such-hat')
+  expect(await warnsWith(undefined)).toContain('no-such-hat')
+  // the check is still a literal a consumer's bundler can replace
+  const files = (await readdir(out, { recursive: true })).filter((f) =>
+    f.endsWith('.js'),
+  )
+  let literal = false
+  for (const f of files)
+    if ((await readFile(join(out, f), 'utf8')).includes('process.env.NODE_ENV'))
+      literal = true
+  expect(literal).toBe(true)
+})

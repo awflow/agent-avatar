@@ -46,8 +46,9 @@ export function registry(): Registry {
   return g[KEY]
 }
 
-// typed here so the declaration build needs no node types; bundlers replace
-// the literal `process.env.NODE_ENV` expression below
+// typed here so the declaration build needs no node types. The literal
+// `process.env.NODE_ENV` below survives our own build (scripts/build.ts) so
+// the consumer's bundler replaces it, or the runtime reads it
 declare const process: { env: { NODE_ENV?: string } }
 
 /**

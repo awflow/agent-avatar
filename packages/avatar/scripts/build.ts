@@ -32,6 +32,10 @@ const result = await Bun.build({
   target: 'browser',
   format: 'esm',
   external: ['react'],
+  // Bun would inline its own NODE_ENV here and leave development warnings
+  // on (or off) for good. Kept as a literal, the consumer's bundler or
+  // runtime decides, as with any library.
+  define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
   naming: { entry: '[dir]/[name].[ext]', chunk: 'chunks/[name]-[hash].[ext]' },
 })
 if (!result.success) {
