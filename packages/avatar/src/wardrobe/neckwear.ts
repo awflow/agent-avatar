@@ -9,11 +9,11 @@
  * scarf's tail swings on the neckwear slot's own spring, about its knot.
  */
 
-import { clamp } from '../geom'
+import { clamp, halfWidthAt } from '../geom'
 import type { Node } from '../node'
 import { el } from '../node'
 import type { SwingSpec } from '../physics'
-import { INK } from '../tables'
+import { type FaceGeom, INK } from '../tables'
 import type { WearCtx, WearDraw } from './context'
 import { f2, inkOf, lineW, swingOf } from './kit'
 
@@ -25,16 +25,52 @@ const WHITE = '#FFFFFF'
 const PEARL = '#FBF6EC'
 const BLUE = '#3B82F6'
 const ORANGE = '#F08A24'
+const GOLD = '#E8B931'
+// a scarf stays a visible collar on a pointy tip, and a scarf on a wide one
+const MIN_HALF = 30
+const MAX_HALF = 130
+
+/** The mouth's lowest edge this frame, open lips and stroke included. */
+function mouthBottom(ctx: WearCtx) {
+  const { sh, g } = ctx
+  const m = sh.mouth
+  const lips = Math.max(0, g('mt'), g('mb')) * m.d * (4 / 3)
+  return m.y + g('my') + lips + m.sw * ctx.stroke
+}
 
 /** Where the neckwear hangs this frame: the neck line, clear of the lips. */
 export function neckAt(ctx: WearCtx) {
   const { sh, g } = ctx
-  const m = sh.mouth
-  const my = g('my')
-  const lips = Math.max(0, g('mt'), g('mb')) * m.d * (4 / 3)
-  const below = m.y + my + lips + m.sw * ctx.stroke + 2
-  return { x: m.x, y: Math.max(sh.neck + my, below) }
+  return {
+    x: sh.mouth.x,
+    y: Math.max(sh.neck + g('my'), mouthBottom(ctx) + 2),
+  }
 }
+
+/**
+ * Where the necklace hangs: just above the neck line, and always a clear
+ * gap below the mouth, so the beads never read as teeth.
+ */
+function necklaceAt(ctx: WearCtx) {
+  const { sh, g } = ctx
+  return {
+    x: sh.mouth.x,
+    y: Math.max(sh.neck + g('my') - 2, mouthBottom(ctx) + 16),
+  }
+}
+
+/**
+ * The body's half-width at height y, a little inside its edge. Past a flat
+ * bottom (an open mouth can push the neck line there) the band follows the
+ * bottom edge, as cloth hanging over it.
+ */
+export function bodyHalf(sh: FaceGeom, y: number) {
+  let w = halfWidthAt(sh, y)
+  for (let k = 0; k < 60 && w === 0; k++) w = halfWidthAt(sh, y - k)
+  return w
+}
+const hug = (ctx: WearCtx, y: number) =>
+  clamp(bodyHalf(ctx.sh, y) - 1, MIN_HALF, MAX_HALF)
 
 const outline = (ctx: WearCtx, px: number) => ({
   stroke: inkOf(ctx),
@@ -43,18 +79,21 @@ const outline = (ctx: WearCtx, px: number) => ({
   'stroke-linejoin': 'round',
 })
 
+type At = { x: number; y: number }
+
 function item(
   name: string,
-  parts: (ctx: WearCtx, key: (p: string) => string) => Node[],
+  parts: (ctx: WearCtx, key: (p: string) => string, at: At) => Node[],
+  anchor: (ctx: WearCtx) => At = neckAt,
 ): WearDraw {
   return (ctx) => {
-    const { x, y } = neckAt(ctx)
+    const at = anchor(ctx)
     return [
       el(
         'g',
         `wear.neckwear.${name}`,
-        { transform: `translate(${f2(x)} ${f2(y)})` },
-        parts(ctx, (p) => `wear.neckwear.${name}.${p}`),
+        { transform: `translate(${f2(at.x)} ${f2(at.y)})` },
+        parts(ctx, (p) => `wear.neckwear.${name}.${p}`, at),
       ),
     ]
   }
@@ -89,8 +128,16 @@ const bowtie = item('bowtie', (ctx, key) => {
 })
 
 /** A striped band round the neck, a tail that swings from the knot. */
-const scarf = item('scarf', (ctx, key) => {
-  const half = Math.min(ctx.sh.side, 115)
+const scarf = item('scarf', (ctx, key, at) => {
+  // the band hugs the body: each end sits on the outline at its own height,
+  // and its lower edge stays above the body's bottom
+  const yb = Math.max(4, Math.min(12, ctx.sh.bottom - 2 - at.y))
+  const h0 = hug(ctx, at.y - 10)
+  const h1 = hug(ctx, at.y + yb)
+  // the ends slant with the outline, never into a wedge at a notch
+  const wT = Math.min(h0, h1 + 10)
+  const wB = Math.min(h1, h0 + 10)
+  const half = Math.min(wT, wB)
   const line = outline(ctx, 4)
   const angle = swingOf(ctx.pose, 'neckwear')
   // the band dips toward the middle, as a scarf wraps a round neck
@@ -103,12 +150,12 @@ const scarf = item('scarf', (ctx, key) => {
     .join('')
   // the knot sits right of centre; the tail hangs from it
   const kx = half * 0.32
-  const ky = top(kx) + 12
+  const ky = top(kx) + yb
   return [
     el('path', key('band'), {
       ...line,
       fill: SCARF,
-      d: `M${f2(-half)} -10Q0 ${f2(top(0) * 2 + 10)} ${f2(half)} -10L${f2(half)} 12Q0 ${f2(top(0) * 2 + 32)} ${f2(-half)} 12Z`,
+      d: `M${f2(-wT)} -10Q0 ${f2(top(0) * 2 + 10)} ${f2(wT)} -10L${f2(wB)} ${f2(yb)}Q0 ${f2(top(0) * 2 + yb + 20)} ${f2(-wB)} ${f2(yb)}Z`,
     }),
     el('path', key('stripes'), {
       fill: 'none',
@@ -156,46 +203,63 @@ const scarf = item('scarf', (ctx, key) => {
   ]
 })
 
-/** Nine pearls on a string, hung in an arc. */
-const necklace = item('necklace', (ctx, key) => {
-  // wide and shallow, so it reads as a string across the chest
-  const hw = clamp(ctx.sh.side * 0.62, 50, 80)
-  const dip = 28
-  const at = (t: number) => ({
-    x: -hw + 2 * hw * t,
-    y: 2 + 2 * t * (1 - t) * (dip * 2),
-  })
-  return [
-    el('path', key('string'), {
-      fill: 'none',
-      ...outline(ctx, 2.5),
-      d: `M${f2(-hw)} 2Q0 ${f2(dip * 2 + 2)} ${f2(hw)} 2`,
-    }),
-    el(
-      'g',
-      key('pearls'),
-      { fill: PEARL, ...outline(ctx, 2) },
-      Array.from({ length: 9 }, (_, i) => {
-        const p = at(0.1 + i * 0.1)
-        return el('circle', key(`pearls.${i}`), {
-          cx: f2(p.x),
-          cy: f2(p.y),
-          r: i === 4 ? 7 : 5.25,
-        })
+/**
+ * Nine pearls spaced on a visible thread in a wide, gentle arc, a small gold
+ * pendant under the middle one. It hangs below the mouth with a clear gap.
+ */
+const necklace = item(
+  'necklace',
+  (ctx, key, at) => {
+    const hw = clamp(halfWidthAt(ctx.sh, at.y) * 0.8, 50, 100)
+    const dip = 14
+    const pearl = (t: number) => ({
+      x: -hw + 2 * hw * t,
+      y: -2 + 4 * dip * t * (1 - t),
+    })
+    const ts = Array.from({ length: 9 }, (_, i) => 0.14 + i * 0.09)
+    const mid = pearl(0.5)
+    // the beads never touch, so the thread shows between them
+    const r = Math.min(6.5, hw * 0.18 * 0.36)
+    return [
+      el('path', key('thread'), {
+        fill: 'none',
+        ...outline(ctx, 2.5),
+        d: `M${f2(-hw)} -2Q0 ${f2(2 * dip - 2)} ${f2(hw)} -2`,
       }),
-    ),
-    el('path', key('shine'), {
-      fill: 'none',
-      stroke: INK.paper,
-      'stroke-width': f2(lineW(ctx, 2)),
-      'stroke-linecap': 'round',
-      d: Array.from({ length: 9 }, (_, i) => {
-        const p = at(0.1 + i * 0.1)
-        return `M${f2(p.x - 2.5)} ${f2(p.y - 1.5)}l1.5 -1.5`
-      }).join(''),
-    }),
-  ]
-})
+      el('path', key('pendant'), {
+        ...outline(ctx, 2.5),
+        fill: GOLD,
+        d: `M0 ${f2(mid.y + 4)}C9 ${f2(mid.y + 13)} 9 ${f2(mid.y + 23)} 0 ${f2(mid.y + 27)}C-9 ${f2(mid.y + 23)} -9 ${f2(mid.y + 13)} 0 ${f2(mid.y + 4)}Z`,
+      }),
+      el(
+        'g',
+        key('pearls'),
+        { fill: PEARL, ...outline(ctx, 2.5) },
+        ts.map((t, i) => {
+          const p = pearl(t)
+          return el('circle', key(`pearls.${i}`), {
+            cx: f2(p.x),
+            cy: f2(p.y),
+            r: f2(r),
+          })
+        }),
+      ),
+      el('path', key('shine'), {
+        fill: 'none',
+        stroke: INK.paper,
+        'stroke-width': f2(lineW(ctx, 2)),
+        'stroke-linecap': 'round',
+        d: ts
+          .map((t) => {
+            const p = pearl(t)
+            return `M${f2(p.x - 3)} ${f2(p.y - 1.5)}l1.5 -1.5`
+          })
+          .join(''),
+      }),
+    ]
+  },
+  necklaceAt,
+)
 
 /** A blue lanyard and a white card with orange lines. */
 const badge = item('badge', (ctx, key) => {

@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
+import { Live } from '../animate'
 import { draw, type Node, type Pose, restPose } from '../draw'
-import { settle, toSvg } from '../svg'
+import { halfWidthAt } from '../geom'
+import { serialize, settle, toSvg } from '../svg'
 import { ACCESSORIES, EXPRESSIONS, type Expression, FACES } from '../tables'
-import { fakeDom } from '../test/dom'
+import { bounds } from '../test/bounds'
+import { fakeDom, motion } from '../test/dom'
 import { springsOf, WEAR } from './context'
 import { DECOR } from './decor'
-import { NECKWEAR } from './neckwear'
+import { bodyHalf, NECKWEAR } from './neckwear'
 
 fakeDom()
 
@@ -139,6 +142,16 @@ describe('neckwear', () => {
       'wear.neckwear.necklace.pearls',
     )!
     expect(pearls.children.length).toBe(9)
+    const neck = worn({ neckwear: 'necklace' }).tree
+    expect(find(neck, 'wear.neckwear.necklace.thread')).toBeDefined()
+    expect(find(neck, 'wear.neckwear.necklace.pendant')!.attrs.fill).toBe(
+      '#E8B931',
+    )
+    // spaced beads, so the thread shows between them
+    const cs = pearls.children.map((c) => Number(c.attrs.cx))
+    const r = Number(pearls.children[0]!.attrs.r)
+    for (let i = 1; i < cs.length; i++)
+      expect(cs[i]! - cs[i - 1]!).toBeGreaterThan(2 * r + 2)
     const badge = worn({ neckwear: 'badge' }).tree
     expect(find(badge, 'wear.neckwear.badge.lanyard')!.attrs.stroke).toBe(
       '#3B82F6',
@@ -149,19 +162,70 @@ describe('neckwear', () => {
     )
   })
 
-  test('the scarf band spans min(side, 115) a side', () => {
-    for (const shape of ['circle', 'triangle'] as const) {
-      const band = find(
-        worn({ shape, neckwear: 'scarf' }).tree,
-        'wear.neckwear.scarf.band',
-      )!
-      const xs = [...band.attrs.d!.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(
-        (m) => Number(m[1]),
-      )
-      const half = Math.min(FACES[shape].side, 115)
-      expect(Math.min(...xs)).toBeCloseTo(-half, 0)
-      expect(Math.max(...xs)).toBeCloseTo(half, 0)
-    }
+  test('the body half-width at a height matches the outlines', () => {
+    const at = (f: keyof typeof FACES, y: number) => halfWidthAt(FACES[f], y)
+    expect(at('circle', 170)).toBeCloseTo(150, 1)
+    expect(at('circle', 290)).toBeCloseTo(90, 1)
+    expect(at('diamond', 250)).toBeCloseTo(70, 1)
+    expect(at('diamond', 100)).toBeCloseTo(80, 1)
+    // the triangle's rounded rim adds half its stroke
+    expect(at('triangle', 170)).toBeCloseTo((129.2 / 258.4) * 142.8 + 13.6, 1)
+    expect(at('capsule', 170)).toBeCloseTo(95.2, 1)
+    expect(at('cube', 170)).toBeCloseTo(149.6, 1)
+    expect(at('bean', 170)).toBeCloseTo(163.2, 1)
+    expect(at('semicircle', 170)).toBeCloseTo(Math.sqrt(170 ** 2 - 85 ** 2), 0)
+    expect(at('semicircle', 260)).toBe(0)
+    expect(at('circle', 330)).toBe(0)
+  })
+
+  test('the scarf band hugs the body on every shape', () => {
+    for (const shape of SHAPES)
+      for (const expression of ['normal', 'surprised', 'excited'] as const) {
+        const node = find(
+          worn({ shape, expression, neckwear: 'scarf' }).tree,
+          'wear.neckwear.scarf',
+        )!
+        const y0 = Number(
+          /translate\([\d.-]+ ([\d.-]+)\)/.exec(node.attrs.transform!)![1],
+        )
+        const band = find(node, 'wear.neckwear.scarf.band')!
+        const pts = [...band.attrs.d!.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(
+          (m) => [Number(m[1]), Number(m[2])] as const,
+        )
+        // the four ends: top left, top right, bottom right, bottom left
+        for (const i of [0, 2, 3, 5]) {
+          const [x, y] = pts[i]!
+          // past a flat bottom the outline is the bottom edge
+          const w = bodyHalf(FACES[shape], y0 + y)
+          expect(w).toBeGreaterThan(0)
+          if (halfWidthAt(FACES[shape], y0 + y) === 0)
+            expect(y0 + y).toBeLessThan(FACES[shape].bottom + 12)
+          expect(Math.abs(x)).toBeLessThanOrEqual(w + 6)
+          // a visible collar, never a sliver
+          expect(Math.abs(x)).toBeGreaterThanOrEqual(30)
+        }
+      }
+  })
+
+  test('the necklace keeps clear of the mouth in every expression', () => {
+    let least = Infinity
+    for (const shape of SHAPES)
+      for (const expression of EXPRS)
+        for (const mouth of ['poly', 'round', 'box', 'cat'] as const) {
+          const { tree } = worn({
+            shape,
+            expression,
+            mouth,
+            neckwear: 'necklace',
+          })
+          const root = find(tree, 'wear.neckwear.necklace')!
+          const pearls = find(root, 'wear.neckwear.necklace.pearls')!
+          const beadTop = bounds({ ...root, children: [pearls] })[1]!
+          const mouthBottom = bounds(find(tree, 'mouth')!)[3]!
+          least = Math.min(least, beadTop - mouthBottom)
+        }
+    // the mouth's box counts curve control points, so it errs low
+    expect(least).toBeGreaterThanOrEqual(15)
   })
 
   test('the scarf tail swings by the neckwear angle, else by wob', () => {
@@ -285,5 +349,60 @@ describe('live', () => {
           expect(JSON.stringify(tree)).not.toMatch(/NaN|Infinity/)
         }
       }
+  })
+})
+
+describe('the first live paint', () => {
+  /* every attribute write a fresh Live makes over the server frame */
+  function firstPaintWrites(name: string, o: Record<string, unknown>) {
+    const proto = (globalThis as any).Element.prototype
+    const set = proto.setAttribute
+    const rm = proto.removeAttribute
+    const writes: string[] = []
+    motion.reduce = false
+    const { who, pose, opts } = settle(name, o, true)
+    const tree = draw(who, pose, opts)
+    const host = document.createElement('div')
+    host.innerHTML = serialize(tree)
+    const svg = host.querySelector('svg') as unknown as SVGSVGElement
+    proto.setAttribute = function (k: string, v: string) {
+      writes.push(`${k}=${v}`)
+      return set.call(this, k, v)
+    }
+    proto.removeAttribute = function (k: string) {
+      writes.push(`-${k}`)
+      return rm.call(this, k)
+    }
+    try {
+      const l = new Live(
+        svg,
+        tree,
+        who,
+        opts,
+        'normal',
+        undefined,
+        o.activity as any,
+      )
+      l.destroy()
+    } finally {
+      proto.setAttribute = set
+      proto.removeAttribute = rm
+    }
+    return writes
+  }
+
+  test('writes nothing over neckwear or decor', () => {
+    for (const name of ['Linh', 'Ada Lovelace']) {
+      for (const activity of ['idle', 'working'])
+        expect(firstPaintWrites(name, { neckwear: 'scarf', activity })).toEqual(
+          [],
+        )
+      expect(
+        firstPaintWrites(name, { neckwear: 'scarf', headwear: 'antenna' }),
+      ).toEqual([])
+      for (const face of ['freckles', 'mustache'])
+        expect(firstPaintWrites(name, { face })).toEqual([])
+      expect(firstPaintWrites(name, { neckwear: 'badge' })).toEqual([])
+    }
   })
 })
