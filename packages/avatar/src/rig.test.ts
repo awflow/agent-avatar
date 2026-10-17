@@ -7,7 +7,7 @@ import {
   resetPluginsForTests,
 } from './plugins'
 import { REACTIONS } from './reactions'
-import { frames, Rig } from './rig'
+import { FRAME_LIMITS, frames, Rig } from './rig'
 import { type AvatarOptions, serialize, settle } from './svg'
 import { GROUPS } from './tables'
 
@@ -72,6 +72,38 @@ describe('frames()', () => {
     } finally {
       Math.random = real
     }
+  })
+
+  test('FRAME_LIMITS caps the work and names the limit it hits', () => {
+    expect(FRAME_LIMITS).toEqual({
+      maxFrames: 600,
+      minFps: 1,
+      maxFps: 120,
+      maxSeconds: 60,
+    })
+    const at = (fps: number, seconds: number) => () =>
+      frames('Linh', {}, { fps, seconds })
+    expect(at(121, 1)).toThrow(RangeError)
+    expect(at(121, 1)).toThrow(/maxFps/)
+    expect(at(0.5, 1)).toThrow(/minFps/)
+    expect(at(0, 1)).toThrow(/minFps/)
+    expect(at(Number.NaN, 1)).toThrow(/minFps/)
+    expect(at(1, 61)).toThrow(/maxSeconds/)
+    expect(at(1, Number.POSITIVE_INFINITY)).toThrow(/maxSeconds/)
+    expect(at(1, -1)).toThrow(RangeError)
+    // 30 fps for 30 s is 900 frames: inside each rate, over the total
+    expect(at(30, 30)).toThrow(/maxFrames/)
+    expect(at(120, 5)).not.toThrow()
+    expect(frames('Linh', {}, { fps: 120, seconds: 5 })).toHaveLength(600)
+    expect(frames('Linh', {}, { fps: 10, seconds: 0 })).toEqual([])
+  })
+
+  test('a reaction never reaches settle: the frames match without it', () => {
+    const o: AvatarOptions & { reaction: 'hop' } = { reaction: 'hop' }
+    const f = frames('Linh', o, { fps: 10, seconds: 0.1 })
+    const { who, pose, opts } = settle('Linh', {}, true)
+    expect(f[0]).toBe(serialize(draw(who, pose, opts)))
+    expect(o).toEqual({ reaction: 'hop' })
   })
 })
 

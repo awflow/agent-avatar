@@ -556,6 +556,8 @@ describe('adapter subpath', () => {
     // Rig stays an adapter primitive
     expect('Rig' in entry).toBe(false)
     expect(typeof (entry as Record<string, unknown>).frames).toBe('function')
+    // deliberately added in the Plan 4 fix wave: the bounds frames() keeps
+    expect((entry as Record<string, unknown>).FRAME_LIMITS).toBeTruthy()
     // deliberately added in Plan 3: what a plugin author draws with
     for (const name of ['el', 'crownTop', 'swingOf'])
       expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')

@@ -892,10 +892,22 @@ export class Rig {
 }
 
 /**
+ * What frames() renders at most, shared with the export tools: 600 frames,
+ * 1 to 120 fps, 60 seconds. Going past one throws a RangeError naming it.
+ */
+export const FRAME_LIMITS = Object.freeze({
+  maxFrames: 600,
+  minFps: 1,
+  maxFps: 120,
+  maxSeconds: 60,
+})
+
+/**
  * An animation, rendered: `seconds` of the live avatar at `fps`, one
  * serialized SVG per frame. The first is the server frame of the live tree;
  * each next one is 1/fps later. Deterministic: the rig's randomness comes
  * from a source seeded by the name. A `reaction` starts at the first frame.
+ * Bounded by FRAME_LIMITS: a RangeError names the limit a request exceeds.
  */
 export function frames(
   name: string,
@@ -903,20 +915,36 @@ export function frames(
   o: { fps: number; seconds: number },
 ): string[] {
   const { fps, seconds } = o
-  if (!(Number.isFinite(fps) && fps > 0 && Number.isFinite(seconds))) return []
-  const n = Math.max(0, Math.round(fps * seconds))
-  const { who, opts: draws } = settle(name, opts, true)
+  const L = FRAME_LIMITS
+  if (!(fps >= L.minFps))
+    throw new RangeError(`frames(): fps ${fps} is below minFps ${L.minFps}`)
+  if (fps > L.maxFps)
+    throw new RangeError(`frames(): fps ${fps} is above maxFps ${L.maxFps}`)
+  if (!(seconds >= 0))
+    throw new RangeError(`frames(): seconds ${seconds} must be 0 or more`)
+  if (seconds > L.maxSeconds)
+    throw new RangeError(
+      `frames(): seconds ${seconds} is above maxSeconds ${L.maxSeconds}`,
+    )
+  const n = Math.round(fps * seconds)
+  if (n > L.maxFrames)
+    throw new RangeError(
+      `frames(): ${n} frames is above maxFrames ${L.maxFrames}`,
+    )
+  // the reaction is played on the rig, never drawn from
+  const { reaction, ...look } = opts
+  const { who, opts: draws } = settle(name, look, true)
   const rig = new Rig(
     who,
     draws,
     {
-      expression: opts.expression ?? 'normal',
-      activity: activityOf(opts.activity),
-      gaze: opts.gaze,
+      expression: look.expression ?? 'normal',
+      activity: activityOf(look.activity),
+      gaze: look.gaze,
     },
     mulberry32(seed(name, 'rig')),
   )
-  if (opts.reaction) rig.react(opts.reaction)
+  if (reaction) rig.react(reaction)
   // substeps of at most 1/60 s keep the springs as smooth as a live page
   const dt = 1 / fps
   const sub = Math.max(1, Math.ceil(dt * 60 - 1e-9))

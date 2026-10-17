@@ -8,6 +8,7 @@ exports[`adapter subpath the main entry stays frozen 1`] = `
   "COLORS",
   "EXPRESSIONS",
   "FACES",
+  "FRAME_LIMITS",
   "FX_KINDS",
   "GROUPS",
   "LATEST",
