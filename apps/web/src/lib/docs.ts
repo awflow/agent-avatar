@@ -20,7 +20,7 @@ import {
   VERSIONS,
 } from '@awflow/avatar'
 import type { AvatarProps } from '@awflow/avatar-react'
-import { FRAMEWORKS, INSTALL, type Look, snippet } from './frameworks'
+import { FRAMEWORKS, INSTALL, type Look, snippet } from './frameworks.ts'
 
 export const SITE = 'https://[docs domain]'
 export const REPO = 'https://github.com/awflow/avatar'

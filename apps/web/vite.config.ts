@@ -1,7 +1,7 @@
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import { PAGES } from './src/lib/docs'
+import { PAGES } from './src/lib/docs.ts'
 
 /*
  * Static: every page prerenders to HTML, which the root wrangler.jsonc
