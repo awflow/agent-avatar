@@ -34,6 +34,7 @@ import {
   thingGaze,
   VB,
 } from './draw'
+import { type Swing, stepSwing } from './physics'
 import { REACTIONS, type Reaction, reactionOf } from './reactions'
 import {
   type Channel,
@@ -357,6 +358,9 @@ export class Live {
   private nodAt = 0
   private lookThing: boolean
   private lag = { y: 0, v: 0 }
+  private swing: Swing = { angle: 0, vel: 0 }
+  // the body's last position and velocity, for its acceleration
+  private motion: { p: number[]; v: number[] } | null = null
   private fixed: Gaze | null = null
   private watch = false
   private rect: DOMRect | null = null
@@ -597,6 +601,8 @@ export class Live {
     this.reaction = null
     this.fxKind = null
     this.fxP = 0
+    this.swing = { angle: 0, vel: 0 }
+    this.motion = null
     this.paint()
   }
 
@@ -804,6 +810,28 @@ export class Live {
       (lom * lom * (avY - this.lag.y) - 2 * lze * lom * this.lag.v) * dt
     this.lag.y += this.lag.v * dt
 
+    // accessories swing on the body's acceleration (x, altitude, tilt)
+    const p = [
+      this.val.x + out.x,
+      (this.val.alt + out.alt) * R,
+      this.val.rot + out.rot,
+    ]
+    const m = this.motion
+    if (this.reduced) this.motion = null
+    else if (m && dt > 0) {
+      const v = p.map((q, i) => (q - m.p[i]!) / dt)
+      this.swing = stepSwing(
+        this.swing,
+        {
+          x: (v[0]! - m.v[0]!) / dt,
+          y: (v[1]! - m.v[1]!) / dt,
+          rot: (v[2]! - m.v[2]!) / dt,
+        },
+        dt,
+      )
+      this.motion = { p, v }
+    } else this.motion = { p, v: [0, 0, 0] }
+
     this.out = out
     this.paint()
   }
@@ -816,7 +844,7 @@ export class Live {
       activity: this.activity,
       // reduced motion freezes loops and fx at the static phase
       t: REST_T + (this.reduced ? 0 : this.clock),
-      wob: 0,
+      wob: this.reduced ? 0 : this.swing.angle,
       fx: this.fxKind,
       fxP: this.fxP,
       voice: -1,

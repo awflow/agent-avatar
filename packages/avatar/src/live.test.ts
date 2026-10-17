@@ -214,3 +214,33 @@ describe('Live.setActivity', () => {
     live.destroy()
   })
 })
+
+describe('accessory physics', () => {
+  test('a startled hop swings the sprout, and the node set never changes', () => {
+    const { live, count, rig } = mount('Linh', { headwear: 'sprout' } as any)
+    const n = count()
+    let peak = 0
+    live.react('hop')
+    for (let i = 0; i < 60; i++) {
+      live.step(1 / 60)
+      peak = Math.max(peak, Math.abs(rig.swing.angle))
+    }
+    expect(peak).toBeGreaterThan(0.3)
+    expect(count()).toBe(n)
+  })
+
+  test('the swing settles back to rest', () => {
+    const { live, rig } = mount('Linh')
+    live.react('hop')
+    for (let i = 0; i < 60 * 8; i++) live.step(1 / 60)
+    expect(Math.abs(rig.swing.angle)).toBeLessThan(0.5)
+  })
+
+  test('reduced motion keeps wob at 0', () => {
+    const { live, rig } = mount('Linh', {}, true)
+    live.react('hop')
+    live.setActivity('working')
+    for (let i = 0; i < 30; i++) live.step(1 / 60)
+    expect(rig.swing.angle).toBe(0)
+  })
+})

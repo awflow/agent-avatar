@@ -1155,13 +1155,15 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // the crown outline instead of a spot on its old face
   const hair = g('hair')
   const lag = pose.lag
+  // the swing: the trait takes 0.6 of it on top of its own lag
+  const tw = 0.6 * pose.wob
   let traitT = ''
   let shape: Node | null = null
   if (who.trait === 'none') {
     // no crest
   } else if (who.trait === 'square') {
     const s = seat(sh.crown, 22 + hair * 10, 0)
-    traitT = `translate(${f2(s.x)} ${f2(s.y + lag)}) rotate(${f2(s.a + 22 + hair * 23)})`
+    traitT = `translate(${f2(s.x)} ${f2(s.y + lag)}) rotate(${f2(s.a + 22 + hair * 23 + tw)})`
     shape = n('rect', 'trait.shape', {
       x: -11,
       y: -11,
@@ -1171,7 +1173,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     })
   } else if (who.trait === 'fin') {
     const s = seat(sh.crown, -6, -164 * 22 * RAD)
-    const r = s.a + (hair >= 0 ? hair * 20 : hair * 55) - lag * 0.8
+    const r = s.a + (hair >= 0 ? hair * 20 : hair * 55) - lag * 0.8 + tw
     traitT = `translate(${f2(s.x)} ${f2(s.y + lag * 0.25)}) rotate(${f2(r)})`
     shape = n('path', 'trait.shape', {
       d: 'M0 0L0 -40A40 40 0 0 1 40 0Z',
@@ -1207,7 +1209,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     // peak: the mark's triangle worn on the crown; lifts when perky, keels
     // over sideways when low
     const s = seat(sh.crown, 4 + Math.max(0, hair) * 9, 0)
-    const r = s.a + (hair < 0 ? -hair * 38 : 0) - lag * 0.5
+    const r = s.a + (hair < 0 ? -hair * 38 : 0) - lag * 0.5 + tw
     traitT = `translate(${f2(s.x)} ${f2(s.y + lag)}) rotate(${f2(r)}) scale(${f2(1 + Math.max(0, hair) * 0.1)})`
     shape = n('path', 'trait.shape', {
       d: 'M0 -27L13 -3L-13 -3Z',
@@ -1408,7 +1410,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         'g',
         'headwear',
         {
-          transform: `translate(${f2(anchor.x)} ${f2(anchor.y)}) rotate(${f2(sprout ? angle * 0.5 : angle)})`,
+          transform: `translate(${f2(anchor.x)} ${f2(anchor.y)}) rotate(${f2(sprout ? angle * 0.5 + pose.wob : angle)})`,
         },
         parts,
       ),
