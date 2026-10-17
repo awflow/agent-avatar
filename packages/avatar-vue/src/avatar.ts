@@ -269,8 +269,14 @@ export const Avatar = defineComponent({
      * and set() brings it to the current one.
      */
     const bind: Bind = (svg, s) => {
-      const o =
-        applied && applied.gen === s.gen ? { ...s.o, ...applied.state } : s.o
+      // same svg again: the state it shows. A new identity: the reactKey
+      // the old handle last had, so a key that changed with it still plays
+      // when apply() sends it
+      const o = !applied
+        ? s.o
+        : applied.gen === s.gen
+          ? { ...s.o, ...applied.state }
+          : { ...s.o, reactKey: applied.state.reactKey }
       const h = attach(svg, o)
       if (voice) h.setVoice(voice)
       if (target) h.lookAt(resolve(target))
