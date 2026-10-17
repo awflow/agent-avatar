@@ -126,6 +126,69 @@ describe('Live.setActivity', () => {
     live.destroy()
   })
 
+  test('the first paint writes nothing over the server frame', () => {
+    const proto = (globalThis as any).Element.prototype
+    const set = proto.setAttribute
+    const rm = proto.removeAttribute
+    let writes: string[] = []
+    reduce = false
+    proto.setAttribute = function (k: string, v: string) {
+      writes.push(`${k}=${v}`)
+      return set.call(this, k, v)
+    }
+    proto.removeAttribute = function (k: string) {
+      writes.push(`-${k}`)
+      return rm.call(this, k)
+    }
+    try {
+      for (const activity of [
+        'thinking',
+        'working',
+        'done',
+        'waiting',
+        'sleeping',
+        'speaking',
+        'error',
+        'listening',
+      ] as Activity[])
+        for (const name of ['Linh', 'Ada Lovelace']) {
+          const { who, pose, opts } = settle(
+            name,
+            { activity, ring: { color: '#F08A24', pulse: true } },
+            true,
+          )
+          const tree = draw(who, pose, opts)
+          const host = document.createElement('div')
+          host.innerHTML = serialize(tree)
+          const svg = host.querySelector('svg') as unknown as SVGSVGElement
+          writes = []
+          const l = new Live(
+            svg,
+            tree,
+            who,
+            opts,
+            'normal',
+            undefined,
+            activity,
+          )
+          expect(writes).toEqual([])
+          l.destroy()
+        }
+    } finally {
+      proto.setAttribute = set
+      proto.removeAttribute = rm
+    }
+  })
+
+  test('a curious face looks at the thing again after a locked activity', () => {
+    const { live, rig } = mount('Linh', { expression: 'curious' })
+    live.setActivity('thinking')
+    expect(rig.lookThing).toBe(false)
+    live.setActivity('idle')
+    expect(rig.lookThing).toBe(true)
+    live.destroy()
+  })
+
   test('starts settled in the activity it was painted with', () => {
     const { rig } = mount('Linh', { activity: 'working' })
     expect(rig.base.gy).toBeCloseTo(0.35, 6)

@@ -32,7 +32,6 @@ import {
   thingGaze,
   VB,
 } from './draw'
-import { fnv1a } from './identity'
 import {
   type Channel,
   type Channels,
@@ -245,6 +244,15 @@ const BLINK: Record<Expression, [number, number] | null> = {
   attentive: [4.5, 7.5],
 }
 
+/* the part of an activity's loop that restPose paints into a static pose */
+function restLoop(activity: Activity): Partial<Channels> {
+  if (activity === 'idle') return {}
+  const loop = activityLoop(activity, REST_T, 0)
+  delete loop.alt
+  delete loop.x
+  return loop
+}
+
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
 const zero = () => {
   const o = {} as Channels
@@ -323,8 +331,6 @@ export class Live {
   visible = true
   private state: Expression
   private activity: Activity
-  // offsets the activity loops so two faces on a page do not move in step
-  private phase: number
   private reduced: boolean
   private nodes = new Map<string, Element>()
   private prev = new Map<string, Record<string, string>>()
@@ -363,14 +369,21 @@ export class Live {
   ) {
     this.state = expression
     this.activity = activityOf(activity)
-    this.phase = (fnv1a(who.key ?? '') % 628) / 100
     this.bind(tree, svg)
     this.setGaze(gaze)
     const start = restPose(who, expression, this.gaze(), this.activity)
     this.val = { ...start }
+    // the server painted the static loop into the pose: from here `out`
+    // carries it, so the springs settle on the bare blend and nothing jumps
+    const rest = restLoop(this.activity)
+    for (const c in rest) {
+      this.val[c as Channel] -= rest[c as Channel]!
+      this.out[c as Channel] = rest[c as Channel]!
+    }
     this.base = this.target()
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
-    this.lookThing = expression === 'curious'
+    this.lookThing =
+      expression === 'curious' && !ACTIVITIES[this.activity].lockGaze
     this.lag.y = -start.alt * frameOf(FACES[who.face]).R
     this.reduced = reducedMotion()
     // the DOM may hold a pose other than this one: the first paint fixes it
@@ -481,7 +494,12 @@ export class Live {
       this.base[c] = t[c]
       this.spr[c] = DEF_SPR[GROUP_OF[c]]
     }
-    if (ACTIVITIES[a].lockGaze) this.lookThing = false
+    // a curious face goes back to the thing once its eyes are free, unless
+    // its choreography has not reached that beat yet
+    this.lookThing =
+      !ACTIVITIES[a].lockGaze &&
+      this.state === 'curious' &&
+      !this.queue.some((q) => 'look' in q.set)
   }
 
   /**
@@ -666,8 +684,15 @@ export class Live {
       this.nodAt = t + rand(6.5, 9.5)
     }
     // the activity's loop, additive after the springs so it stays crisp
-    const loop = activityLoop(this.activity, t, this.phase)
-    for (const c in loop) out[c as Channel] += loop[c as Channel]!
+    // On the loop clock, which starts at the static phase the server painted.
+    // What the static pose leaves out (altitude and shiver, every idle
+    // channel) eases in over the first half second instead of popping.
+    const loop = activityLoop(this.activity, REST_T + t, 0)
+    const ease = Math.min(1, t / 0.5)
+    for (const c in loop) {
+      const painted = this.activity !== 'idle' && c !== 'alt' && c !== 'x'
+      out[c as Channel] += loop[c as Channel]! * (painted ? 1 : ease)
+    }
     if ((st === 'sad' || st === 'bored') && Math.random() < dt / 7) {
       this.bump('sy', -0.035, 0.5, 0.25, 0.9)
       this.bump('alt', -0.05, 0.5, 0.25, 0.9)
@@ -746,7 +771,7 @@ export class Live {
       expression: this.state,
       activity: this.activity,
       // reduced motion freezes loops and fx at the static phase
-      t: this.reduced ? REST_T : this.clock,
+      t: REST_T + (this.reduced ? 0 : this.clock),
       wob: 0,
       fx: null,
       fxP: 0,
