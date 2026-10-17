@@ -16,3 +16,4 @@ graft/
 .svelte-kit
 .smoke-dist-*/
 .snippets
+.release/
