@@ -10,6 +10,28 @@ import type { SwingSlot, WearCtx } from './context'
 
 export const f2 = (v: number) => String(Math.round(v * 100) / 100)
 
+const MEMO = new WeakMap<object, Map<string, unknown>>()
+const MEMO_MAX = 128
+
+/**
+ * Remembers a geometry search per face (or per crown): a live avatar asks the
+ * same question of the same geometry every frame. Keyed by what the answer
+ * depends on besides the geometry, bounded so a moving input cannot grow it,
+ * and only ever a stored result of the same pure function, never new output.
+ */
+export function memoOf<T>(geom: object, key: string, make: () => T): T {
+  let m = MEMO.get(geom)
+  if (!m) {
+    m = new Map()
+    MEMO.set(geom, m)
+  }
+  if (m.has(key)) return m.get(key) as T
+  if (m.size >= MEMO_MAX) m.clear()
+  const v = make()
+  m.set(key, v)
+  return v
+}
+
 /** A slot's swing angle this frame, in degrees. */
 export const swingOf = (pose: Pose, slot: SwingSlot) =>
   pose.swing?.[slot] ?? pose.wob
@@ -34,18 +56,21 @@ export const crownTop = (sh: FaceGeom) => seat(sh.crown, 0, 0)
  * of sliding down the slopes.
  */
 export function crownDrop(sh: FaceGeom, dx: number, cap: number): number {
-  const top = crownTop(sh)
-  let drop = 0
-  for (const side of [-1, 1]) {
-    let lo = 0
-    let hi = 400
-    for (let i = 0; i < 18; i++) {
-      const mid = (lo + hi) / 2
-      const p = seat(sh.crown, 0, side * mid)
-      if (side * (p.x - top.x) < dx) lo = mid
-      else hi = mid
+  const drop = memoOf(sh, `drop:${dx}`, () => {
+    const top = crownTop(sh)
+    let drop = 0
+    for (const side of [-1, 1]) {
+      let lo = 0
+      let hi = 400
+      for (let i = 0; i < 18; i++) {
+        const mid = (lo + hi) / 2
+        const p = seat(sh.crown, 0, side * mid)
+        if (side * (p.x - top.x) < dx) lo = mid
+        else hi = mid
+      }
+      drop = Math.max(drop, seat(sh.crown, 0, (side * (lo + hi)) / 2).y - top.y)
     }
-    drop = Math.max(drop, seat(sh.crown, 0, (side * (lo + hi)) / 2).y - top.y)
-  }
+    return drop
+  })
   return clamp(drop, 0, cap)
 }

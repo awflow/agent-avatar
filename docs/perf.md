@@ -45,6 +45,29 @@ a miss or a failed guard and 2 when `dist` is missing.
 
 ## Results
 
+2026-10-17, release freeze (wardrobe geometry memoised per face) · same
+machine and setup as below. Before the memoisation (three runs) and after
+(three runs), 100 svgs, 0 outside the viewport:
+
+| build | run | frames p95 | loop mean | loop p95 | loop max | long tasks |
+| --- | --- | --- | --- | --- | --- | --- |
+| before | 1 | 16.67 | 6.86 | 8.13 | 18.06 | 0 |
+| before | 2 | 16.67 | 6.65 | 7.29 | 12.78 | 0 |
+| before | 3 | 16.67 | 6.82 | 7.37 | 11.92 | 0 |
+| after | 1 | 16.67 | 6.64 | 7.30 | 12.61 | 0 |
+| after | 2 | 16.67 | 6.38 | 6.86 | 11.51 | 0 |
+| after | 3 | 16.67 | 6.38 | 7.07 | 12.47 | 0 |
+
+The loop mean drops by about 0.3 ms (6.78 to 6.47). The bench avatars wear no
+wardrobe, so this is a floor: the memoised searches (`crownDrop`, the eyewear
+edge walk, the neckwear half-width scan, plus `propSpot`, which already kept
+a per-face memo) only run for dressed avatars, where a hat or a scarf asks the
+same question of the same face every frame. Output bytes are unchanged: the
+v2 golden sums (`src/golden-v2.test.ts`) pass before and after. **PASS**,
+frames p95 16.67 ms and loop p95 at most 7.30 ms.
+
+### Plan 4 fix wave
+
 2026-10-17, Plan 4 fix wave (guards and the loop gate in place) · Apple M2
 Pro · 16 GB · Chromium 1248 headless · Bun 1.3.14. Three consecutive runs, each
 with 100 svgs, 0 outside the viewport and 602 loop callbacks:

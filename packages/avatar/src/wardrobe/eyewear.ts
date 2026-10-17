@@ -14,7 +14,7 @@ import type { Node } from '../node'
 import { el } from '../node'
 import { INK } from '../tables'
 import type { Wearable, WearCtx, WearDraw } from './context'
-import { f2, inkOf, lineW } from './kit'
+import { f2, inkOf, lineW, memoOf } from './kit'
 
 const GOLD = '#C9952A'
 const VISOR = '#23252F'
@@ -62,14 +62,17 @@ function toEdge(ctx: WearCtx, x: number, y: number, dx: number, dy: number) {
   const L = Math.hypot(dx, dy)
   const ux = dx / L
   const uy = dy / L
-  let lo = 0
-  let hi = 220
-  for (let i = 0; i < 16; i++) {
-    const mid = (lo + hi) / 2
-    if (depth(ctx.sh.crown, x + ux * mid, y + uy * mid) < -3) lo = mid
-    else hi = mid
-  }
-  return { x: x + ux * lo, y: y + uy * lo }
+  const reach = memoOf(ctx.sh.crown, `edge:${x},${y},${dx},${dy}`, () => {
+    let lo = 0
+    let hi = 220
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2
+      if (depth(ctx.sh.crown, x + ux * mid, y + uy * mid) < -3) lo = mid
+      else hi = mid
+    }
+    return lo
+  })
+  return { x: x + ux * reach, y: y + uy * reach }
 }
 
 function group(name: string, parts: Node[]): Node[] {

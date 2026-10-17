@@ -410,7 +410,7 @@ describe('the first live paint', () => {
 describe('mustache follows the mouth skew', () => {
   const tf = (mk: number) => {
     const { who, pose, opts } = settle('Ada', { size: 300, face: 'mustache' })
-    who.persona.add = { ...who.persona.add, mk }
+    who.persona.add = { ...who.persona.add, mk } as typeof who.persona.add
     const tree = draw(who, pose, opts)
     return find(tree, 'wear.decor.mustache')!.attrs.transform!
   }

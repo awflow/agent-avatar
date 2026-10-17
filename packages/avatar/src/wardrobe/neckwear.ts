@@ -15,7 +15,7 @@ import { el } from '../node'
 import type { SwingSpec } from '../physics'
 import { type FaceGeom, INK } from '../tables'
 import type { WearCtx, WearDraw } from './context'
-import { f2, inkOf, lineW, swingOf } from './kit'
+import { f2, inkOf, lineW, memoOf, swingOf } from './kit'
 
 const RED = '#E5412D'
 const RED_DEEP = '#B8321F'
@@ -65,9 +65,11 @@ function necklaceAt(ctx: WearCtx) {
  * bottom edge, as cloth hanging over it.
  */
 export function bodyHalf(sh: FaceGeom, y: number) {
-  let w = halfWidthAt(sh, y)
-  for (let k = 0; k < 60 && w === 0; k++) w = halfWidthAt(sh, y - k)
-  return w
+  return memoOf(sh, `half:${y}`, () => {
+    let w = halfWidthAt(sh, y)
+    for (let k = 0; k < 60 && w === 0; k++) w = halfWidthAt(sh, y - k)
+    return w
+  })
 }
 const hug = (ctx: WearCtx, y: number) =>
   clamp(bodyHalf(ctx.sh, y) - 1, MIN_HALF, MAX_HALF)
