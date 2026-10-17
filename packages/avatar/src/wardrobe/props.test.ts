@@ -177,60 +177,66 @@ describe('placement', () => {
   })
 
   test('keeps at least 0.75 of the mock size on every shape and frame', () => {
-    for (const square of [true, false])
-      for (const framing of ['peek', 'full'])
-        for (const shape of SHAPES)
-          for (const name of ['Ada', 'Linh', 'Zed Okafor']) {
-            const { tree } = (() => {
+    for (const prop of NAMES)
+      for (const square of [true, false])
+        for (const framing of ['peek', 'full'])
+          for (const shape of SHAPES)
+            for (const name of ['Ada', 'Linh', 'Zed Okafor']) {
               const { who, pose, opts } = settle(name, {
-                prop: 'book',
+                prop,
                 size: 300,
                 shape,
                 framing,
                 square,
               } as any)
-              return { tree: draw(who, pose, opts) }
-            })()
-            const k = Number(
-              /scale\(([\d.]+)\)$/.exec(
-                find(tree, 'wear.prop.book')!.attrs.transform!,
-              )![1],
-            )
-            expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
-          }
+              const tree = draw(who, pose, opts)
+              const k = Number(
+                /scale\(([\d.]+)\)$/.exec(
+                  find(tree, `wear.prop.${prop}`)!.attrs.transform!,
+                )![1],
+              )
+              expect([prop, k >= 3.4 * 0.75 - 0.01]).toEqual([prop, true])
+            }
   })
 
-  test('the round semicircle keeps its prop out of the hat zone', () => {
+  test('the round semicircle keeps every prop out of the hat zone', () => {
     // the headphones' band spans the whole head, so its box is no zone
     const hats = ACCESSORIES.headwear.filter(
       (h) => h !== 'none' && h !== 'headphones',
     )
-    for (const name of ['Ada', 'Mira'])
-      for (const spread of [-7, -3, 0, 3, 5, 7])
-        for (const hat of hats) {
-          const { who, pose, opts } = settle(name, {
-            prop: 'book',
-            headwear: hat,
-            size: 300,
-            shape: 'semicircle',
-            square: false,
-          } as any)
-          who.persona.spread = spread
-          const tree = draw(who, pose, opts)
-          const p = absBox(tree, 'wear.prop.book')
-          const k = Number(
-            /scale\(([\d.]+)\)$/.exec(
-              find(tree, 'wear.prop.book')!.attrs.transform!,
-            )![1],
-          )
-          expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
-          const h = find(tree, `wear.headwear.${hat}`)
-          if (!h) continue
-          const hb = absBox(tree, `wear.headwear.${hat}`)
-          const hit =
-            p.x0 < hb.x1 && hb.x0 < p.x1 && p.y0 < hb.y1 && hb.y0 < p.y1
-          expect(hit).toBe(false)
-        }
+    for (const prop of NAMES)
+      for (const name of ['Ada', 'Mira'])
+        for (const spread of [-7, -3, 0, 3, 5, 7])
+          for (const hat of hats) {
+            const { who, pose, opts } = settle(name, {
+              prop,
+              headwear: hat,
+              size: 300,
+              shape: 'semicircle',
+              square: false,
+            } as any)
+            who.persona.spread = spread
+            const tree = draw(who, pose, opts)
+            const p = absBox(tree, `wear.prop.${prop}`)
+            const k = Number(
+              /scale\(([\d.]+)\)$/.exec(
+                find(tree, `wear.prop.${prop}`)!.attrs.transform!,
+              )![1],
+            )
+            expect([prop, k >= 3.4 * 0.75 - 0.01]).toEqual([prop, true])
+            const h = find(tree, `wear.headwear.${hat}`)
+            if (!h) continue
+            const hb = absBox(tree, `wear.headwear.${hat}`)
+            const hit =
+              p.x0 < hb.x1 && hb.x0 < p.x1 && p.y0 < hb.y1 && hb.y0 < p.y1
+            expect([prop, name, spread, hat, hit]).toEqual([
+              prop,
+              name,
+              spread,
+              hat,
+              false,
+            ])
+          }
   })
 
   test('never covers the face, stays in the visible or round frame', () => {

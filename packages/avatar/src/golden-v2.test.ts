@@ -122,7 +122,10 @@ const hat = defineAccessory({
   },
 })
 
-/** Every item and every prop x 3 shapes x peek/full, plus one plugin hat. */
+/**
+ * Every item and every prop x 3 shapes x peek/full, every prop on the round
+ * semicircle, plus one plugin hat.
+ */
 function wardrobe() {
   const out: Record<string, string> = {}
   const one = (extra: Record<string, unknown>) => {
@@ -145,6 +148,25 @@ function wardrobe() {
       if (item !== 'none') out[`${slot}:${item}`] = one({ [SLOTS[slot]]: item })
   for (const prop of PROPS)
     if (prop !== 'none') out[`prop:${prop}`] = one({ prop })
+  // the round frame moves a semicircle's prop up beside the brows, out of
+  // the hat zone: frozen over names whose persona spread runs -6.5 to 6
+  for (const prop of PROPS) {
+    if (prop === 'none') continue
+    const svgs: string[] = []
+    for (const name of ['Ada', 'Hugo', 'Mira', 'Lena'])
+      for (const framing of FRAMINGS)
+        svgs.push(
+          toSvg(name, {
+            version: V,
+            size: 200,
+            shape: 'semicircle',
+            square: false,
+            framing,
+            prop,
+          } as never),
+        )
+    out[`prop-round:${prop}`] = sum(svgs)
+  }
   registerPlugins([hat])
   try {
     out['plugin-headwear:golden-hat'] = one({ headwear: 'golden-hat' })
@@ -163,7 +185,7 @@ describe('golden v2', () => {
     expect(got).toEqual(NAME_SUMS)
   })
 
-  test('every wardrobe item and prop x 3 shapes x peek/full, one plugin hat', () => {
+  test('every wardrobe item and prop x 3 shapes x peek/full, round semicircle props, one plugin hat', () => {
     const got = wardrobe()
     print('WARDROBE', got)
     expect(got).toEqual(WARDROBE_SUMS)
@@ -1280,5 +1302,11 @@ const WARDROBE_SUMS: Record<string, string> = {
   'prop:bulb': '1syoels',
   'prop:book': '31mrn0',
   'prop:wrench': '1uq7cpo',
+  'prop-round:magnifier': '1xonf55',
+  'prop-round:pencil': '1u378kv',
+  'prop-round:coffee': '187lfat',
+  'prop-round:bulb': '1kh6ynf',
+  'prop-round:book': 'dvyhen',
+  'prop-round:wrench': '19qvj0p',
   'plugin-headwear:golden-hat': '1p0vy8o',
 }
