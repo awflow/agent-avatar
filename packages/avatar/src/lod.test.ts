@@ -1,6 +1,12 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { draw, frameOf, type Node } from './draw'
 import { LISTS } from './identity'
+import { el } from './node'
+import {
+  defineAccessory,
+  registerPlugins,
+  resetPluginsForTests,
+} from './plugins'
 import { settle, toSvg } from './svg'
 import { FACES } from './tables'
 
@@ -39,6 +45,8 @@ const full = {
   headwear: 'cap',
 } as const
 
+afterEach(() => resetPluginsForTests())
+
 describe('level of detail', () => {
   test('lod tiers', () => {
     const t16 = keys(treeOf('Linh', { ...full, size: 16 }, true))
@@ -56,6 +64,30 @@ describe('level of detail', () => {
     const t96 = keys(treeOf('Linh', { ...full, size: 96 }, true))
     for (const k of ['brow', 'mouth', 'cheek', 'trait', 'motif', 'headwear'])
       expect(has(t96, k)).toBe(true)
+  })
+
+  test('tier 0 does no wardrobe work, and keeps the eyes under a visor', () => {
+    let calls = 0
+    registerPlugins([
+      defineAccessory({
+        slot: 'neckwear',
+        name: 'counted',
+        draw: () => {
+          calls++
+          return [el('circle', 'c', { cx: 170, cy: 300, r: 4 })]
+        },
+      }),
+    ])
+    treeOf('Linh', { ...full, neckwear: 'counted', size: 16 }, true)
+    expect(calls).toBe(0)
+    treeOf('Linh', { ...full, neckwear: 'counted', size: 32 }, true)
+    expect(calls).toBe(1)
+    // the visor replaces the eyes only where it is drawn
+    const t16 = keys(treeOf('Linh', { eyewear: 'visor', size: 16 }, true))
+    expect(has(t16, 'eye0')).toBe(true)
+    expect(has(t16, 'eyewear')).toBe(false)
+    const t32 = keys(treeOf('Linh', { eyewear: 'visor', size: 32 }, true))
+    expect(has(t32, 'eye0')).toBe(false)
   })
 
   test('v1 keeps every part unless lod is asked for', () => {

@@ -32,7 +32,12 @@ import {
   INK,
 } from './tables'
 import { type Ink, THEMES, type Theme } from './themes'
-import { WEAR, type WearCtx, type WearSlot } from './wardrobe/context'
+import {
+  type SwingSlot,
+  WEAR,
+  type WearCtx,
+  type WearSlot,
+} from './wardrobe/context'
 import {
   HELD_PROPS,
   type PropBound,
@@ -94,7 +99,7 @@ export type Pose = Channels & {
    * Per-wearable swing angles in degrees, for the slots whose items declare
    * their own spring. Absent by default; a slot left out reads `wob`.
    */
-  swing?: Partial<Record<'headwear' | 'neckwear' | 'trait', number>>
+  swing?: Partial<Record<SwingSlot, number>>
 }
 
 export type DrawOptions = {
@@ -666,242 +671,245 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const solid =
     who.eyes === 'pill' || who.eyes === 'dot' || who.eyes === 'spark'
   // the visor stands in for the eyes: it glows where they would look
-  const eyes = (who.eyewear === 'visor' ? [] : sh.eyes).map(([ex, ey], i) => {
-    const side = i === 0 ? -1 : 1
-    const kk = `eye${i}`
-    let lid = clamp(lid0 + (i === 0 ? lidAsym : -lidAsym * 0.3), 0, 1)
-    // a wink closes the right eye over whatever lid it already shows
-    if (i === 1) lid = Math.max(lid, clamp(winkR, 0, 1))
-    lid = lid + (1 - lid) * blink
-    defs.push(
-      n('clipPath', `${kk}.clip`, { id: `${id}-e${i}` }, [
-        n('ellipse', `${kk}.clip.shape`, {
-          cx: 0,
-          cy: 0,
-          rx: f2(rx),
-          ry: f2(ry),
-        }),
-      ]),
-      n('clipPath', `${kk}.lidclip`, { id: `${id}-l${i}` }, [
-        n('ellipse', `${kk}.lidclip.shape`, {
-          cx: 0,
-          cy: 0,
-          rx: f2(rx + 1.6),
-          ry: f2(ry + 1.6),
-        }),
-      ]),
-    )
-    // what sits in the socket: a pupil on paper, a bare bead, or a rimmed eye
-    const br = Math.min(sh.rx, sh.ry) * 0.62
-    const pr = bead ? br * eyeS * (0.4 + 0.6 * pupil) : sh.pr * pupil
-    const base = bead ? br : sh.pr
-    const px = gx * Math.max(0, sh.rx - base) * 0.9
-    const py = gy * Math.max(0, sh.ry - base) * 0.8
-    // capped so a small rimmed eye stays an eye, not an ink blot
-    const rimW = Math.min(sw * 0.8, Math.min(sh.rx, sh.ry) * 0.28)
-    const inner: Node[] = []
-    // a smiling solid eye trades its shape for an upturned arc
-    const happy = solid
-      ? smooth(0.22, 0.36, lower) * (1 - smooth(0.2, 0.3, lid))
-      : 0
-    if (solid) {
-      const pk = 0.4 + 0.6 * pupil
-      const shapes: Node[] = []
-      if (who.eyes === 'pill') {
-        const w = rx * 0.42 * pk
-        const h = Math.max(w, ry * 0.9 * pk)
-        shapes.push(
-          n('rect', `${kk}.solid.shape`, {
-            x: f2(-w),
-            y: f2(-h),
-            width: f2(2 * w),
-            height: f2(2 * h),
-            rx: f2(w),
-            fill: solidInk(slot),
-          }),
-        )
-      } else if (who.eyes === 'dot') {
-        shapes.push(
-          n('circle', `${kk}.solid.shape`, {
+  // the visor replaces the eyes only where it is drawn (tier 1 and up)
+  const eyes = (who.eyewear === 'visor' && tier >= 1 ? [] : sh.eyes).map(
+    ([ex, ey], i) => {
+      const side = i === 0 ? -1 : 1
+      const kk = `eye${i}`
+      let lid = clamp(lid0 + (i === 0 ? lidAsym : -lidAsym * 0.3), 0, 1)
+      // a wink closes the right eye over whatever lid it already shows
+      if (i === 1) lid = Math.max(lid, clamp(winkR, 0, 1))
+      lid = lid + (1 - lid) * blink
+      defs.push(
+        n('clipPath', `${kk}.clip`, { id: `${id}-e${i}` }, [
+          n('ellipse', `${kk}.clip.shape`, {
             cx: 0,
             cy: 0,
-            r: f2(rx * 0.42 * pk),
-            fill: solidInk(slot),
+            rx: f2(rx),
+            ry: f2(ry),
           }),
-        )
-      } else {
-        const erx = rx * 0.48 * pk
-        const ery = ry * 0.72 * pk
-        shapes.push(
-          n('ellipse', `${kk}.solid.shape`, {
+        ]),
+        n('clipPath', `${kk}.lidclip`, { id: `${id}-l${i}` }, [
+          n('ellipse', `${kk}.lidclip.shape`, {
             cx: 0,
             cy: 0,
-            rx: f2(erx),
-            ry: f2(ery),
-            fill: solidInk(slot),
+            rx: f2(rx + 1.6),
+            ry: f2(ry + 1.6),
           }),
-          n('circle', `${kk}.shine`, {
-            cx: f2(erx * 0.38),
-            cy: f2(-ery * 0.42),
-            r: f2(rx * 0.2 * pk),
-            fill: INK.paper,
-            opacity: f2(shine),
-          }),
-          n('circle', `${kk}.shine2`, {
-            cx: f2(-erx * 0.4),
-            cy: f2(ery * 0.45),
-            r: f2(rx * 0.09 * pk),
-            fill: INK.paper,
-            opacity: f2(shine),
-          }),
+        ]),
+      )
+      // what sits in the socket: a pupil on paper, a bare bead, or a rimmed eye
+      const br = Math.min(sh.rx, sh.ry) * 0.62
+      const pr = bead ? br * eyeS * (0.4 + 0.6 * pupil) : sh.pr * pupil
+      const base = bead ? br : sh.pr
+      const px = gx * Math.max(0, sh.rx - base) * 0.9
+      const py = gy * Math.max(0, sh.ry - base) * 0.8
+      // capped so a small rimmed eye stays an eye, not an ink blot
+      const rimW = Math.min(sw * 0.8, Math.min(sh.rx, sh.ry) * 0.28)
+      const inner: Node[] = []
+      // a smiling solid eye trades its shape for an upturned arc
+      const happy = solid
+        ? smooth(0.22, 0.36, lower) * (1 - smooth(0.2, 0.3, lid))
+        : 0
+      if (solid) {
+        const pk = 0.4 + 0.6 * pupil
+        const shapes: Node[] = []
+        if (who.eyes === 'pill') {
+          const w = rx * 0.42 * pk
+          const h = Math.max(w, ry * 0.9 * pk)
+          shapes.push(
+            n('rect', `${kk}.solid.shape`, {
+              x: f2(-w),
+              y: f2(-h),
+              width: f2(2 * w),
+              height: f2(2 * h),
+              rx: f2(w),
+              fill: solidInk(slot),
+            }),
+          )
+        } else if (who.eyes === 'dot') {
+          shapes.push(
+            n('circle', `${kk}.solid.shape`, {
+              cx: 0,
+              cy: 0,
+              r: f2(rx * 0.42 * pk),
+              fill: solidInk(slot),
+            }),
+          )
+        } else {
+          const erx = rx * 0.48 * pk
+          const ery = ry * 0.72 * pk
+          shapes.push(
+            n('ellipse', `${kk}.solid.shape`, {
+              cx: 0,
+              cy: 0,
+              rx: f2(erx),
+              ry: f2(ery),
+              fill: solidInk(slot),
+            }),
+            n('circle', `${kk}.shine`, {
+              cx: f2(erx * 0.38),
+              cy: f2(-ery * 0.42),
+              r: f2(rx * 0.2 * pk),
+              fill: INK.paper,
+              opacity: f2(shine),
+            }),
+            n('circle', `${kk}.shine2`, {
+              cx: f2(-erx * 0.4),
+              cy: f2(ery * 0.45),
+              r: f2(rx * 0.09 * pk),
+              fill: INK.paper,
+              opacity: f2(shine),
+            }),
+          )
+        }
+        inner.push(
+          n(
+            'g',
+            `${kk}.solid`,
+            { opacity: happy > 0.01 ? f2(1 - happy) : undefined },
+            shapes,
+          ),
         )
       }
-      inner.push(
-        n(
-          'g',
-          `${kk}.solid`,
-          { opacity: happy > 0.01 ? f2(1 - happy) : undefined },
-          shapes,
-        ),
-      )
-    }
-    if (!bead && !solid)
-      inner.push(
-        n('ellipse', `${kk}.white`, {
-          cx: 0,
-          cy: 0,
-          rx: f2(rx),
-          ry: f2(ry),
-          fill: T.sclera(slot),
-        }),
-      )
-    if (!solid)
-      inner.push(
-        n('circle', `${kk}.pupil`, {
-          cx: f2(px),
-          cy: f2(py),
-          r: f2(pr),
-          fill: bead ? solidInk(slot) : T.pupil(slot),
-        }),
-        n('circle', `${kk}.shine`, {
-          cx: f2(px + pr * 0.44),
-          cy: f2(py - pr * 0.44),
-          r: f2(pr * (bead ? 0.26 : 0.3)),
-          fill: INK.paper,
-          opacity: f2(shine),
-        }),
-      )
-    if (who.eyes === 'ring')
-      inner.push(
-        n('ellipse', `${kk}.rim`, {
-          cx: 0,
-          cy: 0,
-          rx: f2(rx - rimW / 2),
-          ry: f2(ry - rimW / 2),
-          fill: 'none',
-          stroke: inkC,
-          'stroke-width': f2(rimW),
-        }),
-      )
-    // upper lid: a straight cut, tilted, same as the v1.0 sad and angry lids
-    const edge = -ry - 1.6 + lid * (2 * ry + 3.2)
-    const a = side * tilt
-    // lower lid: a wide arc pushing up from below, the smiling squint
-    const lrx = rx * 1.55
-    const lry = ry * 1.15
-    const top = ry + 1.6 - lower * ry * 1.5
-    const parts: Node[] = [
-      n('g', `${kk}.inner`, { 'clip-path': `url(#${id}-e${i})` }, inner),
-      n('g', `${kk}.lids`, { 'clip-path': `url(#${id}-l${i})` }, [
-        n('rect', `${kk}.lid`, {
-          x: f2(-rx * 2.2),
-          y: f2(-ry * 3),
-          width: f2(rx * 4.4),
-          height: f2(Math.max(0, edge + ry * 3)),
-          transform: `rotate(${f2(a)})`,
-          fill,
-        }),
-        n('ellipse', `${kk}.lower`, {
-          cx: 0,
-          cy: f2(top + lry),
-          rx: f2(lrx),
-          ry: f2(lry),
-          fill,
-        }),
-      ]),
-    ]
-    // a rimmed eye inks its lid edges too, so the outline follows the lids
-    if (who.eyes === 'ring')
-      parts.push(
-        n(
-          'g',
-          `${kk}.edges`,
-          {
-            'clip-path': `url(#${id}-e${i})`,
+      if (!bead && !solid)
+        inner.push(
+          n('ellipse', `${kk}.white`, {
+            cx: 0,
+            cy: 0,
+            rx: f2(rx),
+            ry: f2(ry),
+            fill: T.sclera(slot),
+          }),
+        )
+      if (!solid)
+        inner.push(
+          n('circle', `${kk}.pupil`, {
+            cx: f2(px),
+            cy: f2(py),
+            r: f2(pr),
+            fill: bead ? solidInk(slot) : T.pupil(slot),
+          }),
+          n('circle', `${kk}.shine`, {
+            cx: f2(px + pr * 0.44),
+            cy: f2(py - pr * 0.44),
+            r: f2(pr * (bead ? 0.26 : 0.3)),
+            fill: INK.paper,
+            opacity: f2(shine),
+          }),
+        )
+      if (who.eyes === 'ring')
+        inner.push(
+          n('ellipse', `${kk}.rim`, {
+            cx: 0,
+            cy: 0,
+            rx: f2(rx - rimW / 2),
+            ry: f2(ry - rimW / 2),
             fill: 'none',
             stroke: inkC,
             'stroke-width': f2(rimW),
-          },
-          [
-            n('path', `${kk}.edge`, {
-              d: `M${f2(-rx * 2.2)} ${f2(edge)}H${f2(rx * 2.2)}`,
-              transform: `rotate(${f2(a)})`,
-              opacity: lid > 0.02 ? 1 : 0,
-            }),
-            n('ellipse', `${kk}.edge.lower`, {
-              cx: 0,
-              cy: f2(top + lry),
-              rx: f2(lrx),
-              ry: f2(lry),
-              opacity: lower > 0.02 ? 1 : 0,
-            }),
-          ],
-        ),
-      )
-    // closed eye: a hairline drawn once the lid is down
-    const co = smooth(0.86, 1, lid)
-    const yy = Math.min(edge, ry) - 1
-    const hw = rx * 0.92
-    parts.push(
-      n('path', `${kk}.closed`, {
-        d: `M${f2(-hw)} ${f2(yy - 2)}Q0 ${f2(yy + 6)} ${f2(hw)} ${f2(yy - 2)}`,
-        transform: `rotate(${f2(a * 0.6)})`,
-        fill: 'none',
-        stroke: inkC,
-        'stroke-linecap': 'round',
-        'stroke-width': f2(sw * 0.85),
-        opacity: co > 0.01 ? f2(co) : 0,
-      }),
-    )
-    if (solid) {
-      // the smiling solid eye: an arc bowed upward, the width of the eye
-      const aw = rx * 0.62
-      const ay = ry * 0.22
+          }),
+        )
+      // upper lid: a straight cut, tilted, same as the v1.0 sad and angry lids
+      const edge = -ry - 1.6 + lid * (2 * ry + 3.2)
+      const a = side * tilt
+      // lower lid: a wide arc pushing up from below, the smiling squint
+      const lrx = rx * 1.55
+      const lry = ry * 1.15
+      const top = ry + 1.6 - lower * ry * 1.5
+      const parts: Node[] = [
+        n('g', `${kk}.inner`, { 'clip-path': `url(#${id}-e${i})` }, inner),
+        n('g', `${kk}.lids`, { 'clip-path': `url(#${id}-l${i})` }, [
+          n('rect', `${kk}.lid`, {
+            x: f2(-rx * 2.2),
+            y: f2(-ry * 3),
+            width: f2(rx * 4.4),
+            height: f2(Math.max(0, edge + ry * 3)),
+            transform: `rotate(${f2(a)})`,
+            fill,
+          }),
+          n('ellipse', `${kk}.lower`, {
+            cx: 0,
+            cy: f2(top + lry),
+            rx: f2(lrx),
+            ry: f2(lry),
+            fill,
+          }),
+        ]),
+      ]
+      // a rimmed eye inks its lid edges too, so the outline follows the lids
+      if (who.eyes === 'ring')
+        parts.push(
+          n(
+            'g',
+            `${kk}.edges`,
+            {
+              'clip-path': `url(#${id}-e${i})`,
+              fill: 'none',
+              stroke: inkC,
+              'stroke-width': f2(rimW),
+            },
+            [
+              n('path', `${kk}.edge`, {
+                d: `M${f2(-rx * 2.2)} ${f2(edge)}H${f2(rx * 2.2)}`,
+                transform: `rotate(${f2(a)})`,
+                opacity: lid > 0.02 ? 1 : 0,
+              }),
+              n('ellipse', `${kk}.edge.lower`, {
+                cx: 0,
+                cy: f2(top + lry),
+                rx: f2(lrx),
+                ry: f2(lry),
+                opacity: lower > 0.02 ? 1 : 0,
+              }),
+            ],
+          ),
+        )
+      // closed eye: a hairline drawn once the lid is down
+      const co = smooth(0.86, 1, lid)
+      const yy = Math.min(edge, ry) - 1
+      const hw = rx * 0.92
       parts.push(
-        n('path', `${kk}.happy`, {
-          d: `M${f2(-aw)} ${f2(ay)}Q0 ${f2(ay - ry * 1.1)} ${f2(aw)} ${f2(ay)}`,
+        n('path', `${kk}.closed`, {
+          d: `M${f2(-hw)} ${f2(yy - 2)}Q0 ${f2(yy + 6)} ${f2(hw)} ${f2(yy - 2)}`,
+          transform: `rotate(${f2(a * 0.6)})`,
           fill: 'none',
           stroke: inkC,
           'stroke-linecap': 'round',
-          'stroke-width': f2(sw * 1.25),
-          opacity: happy > 0.01 ? f2(happy) : 0,
+          'stroke-width': f2(sw * 0.85),
+          opacity: co > 0.01 ? f2(co) : 0,
         }),
       )
-    }
-    return n(
-      'g',
-      kk,
-      {
-        // a bead has no white to show where it looks, so the whole eye leans
-        transform: bead
-          ? `translate(${f2(ex + side * spread + gx * 6)} ${f2(ey + gy * 6)})`
-          : solid
-            ? `translate(${f2(ex + side * spread + gx * rx * 0.3)} ${f2(ey + gy * ry * 0.3)})`
-            : `translate(${f2(ex + side * spread)} ${ey})`,
-      },
-      parts,
-    )
-  })
+      if (solid) {
+        // the smiling solid eye: an arc bowed upward, the width of the eye
+        const aw = rx * 0.62
+        const ay = ry * 0.22
+        parts.push(
+          n('path', `${kk}.happy`, {
+            d: `M${f2(-aw)} ${f2(ay)}Q0 ${f2(ay - ry * 1.1)} ${f2(aw)} ${f2(ay)}`,
+            fill: 'none',
+            stroke: inkC,
+            'stroke-linecap': 'round',
+            'stroke-width': f2(sw * 1.25),
+            opacity: happy > 0.01 ? f2(happy) : 0,
+          }),
+        )
+      }
+      return n(
+        'g',
+        kk,
+        {
+          // a bead has no white to show where it looks, so the whole eye leans
+          transform: bead
+            ? `translate(${f2(ex + side * spread + gx * 6)} ${f2(ey + gy * 6)})`
+            : solid
+              ? `translate(${f2(ex + side * spread + gx * rx * 0.3)} ${f2(ey + gy * ry * 0.3)})`
+              : `translate(${f2(ex + side * spread)} ${ey})`,
+        },
+        parts,
+      )
+    },
+  )
 
   // brows
   const browY = g('browY') - (eyeS - 1) * sh.ry * 0.9
@@ -1167,32 +1175,38 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
   }
+  // the LOD gate drops the wardrobe below tier 1, so nothing is drawn there
+  const dressed = tier >= 1
   // everything past Peek's own items: one drawing per slot from the
-  // registry, painted after that slot's Peek item
-  const ctx: WearCtx = {
-    sh,
-    who,
-    pose,
-    t: pose.t + loopPhase(who.key),
-    theme: T,
-    ink: slot,
-    g,
-    stroke: st,
-    id,
-    size: o.size,
-  }
-  const wearOf = (kind: WearSlot, name: string) => {
-    if (Object.hasOwn(WEAR[kind], name)) return WEAR[kind][name]!.draw(ctx)
+  // registry, painted after that slot's Peek item. The context is built on
+  // first use, so tier 0 never builds it.
+  let built: WearCtx | undefined
+  const ctxOf = (): WearCtx =>
+    (built ??= {
+      sh,
+      who,
+      pose,
+      t: pose.t + loopPhase(who.key),
+      theme: T,
+      ink: slot,
+      g,
+      stroke: st,
+      id,
+      size: o.size,
+    })
+  const wearOf = (kind: WearSlot, name: string): Node[] => {
+    if (!dressed) return []
+    if (Object.hasOwn(WEAR[kind], name)) return WEAR[kind][name]!.draw(ctxOf())
     // a registered plugin, after the built-ins: never shadows one
     const plug = accessoryOf(kind, name)
-    return plug ? [drawPlugin(plug, ctx)] : []
+    return plug ? [drawPlugin(plug, ctxOf())] : []
   }
   const wear = (kind: WearSlot, name: string) => {
     wardrobe.push(...wearOf(kind, name))
   }
   // the face decoration paints over the cheeks and the mouth, under eyewear
   const decor = wearOf('decor', who.decor)
-  if (who.eyewear === 'glasses' || who.eyewear === 'sunglasses') {
+  if (dressed && (who.eyewear === 'glasses' || who.eyewear === 'sunglasses')) {
     const lx = sh.eyes[0][0] - spread
     const rr = sh.eyes[1][0] + spread
     const ey = sh.eyes[0][1]
@@ -1268,9 +1282,10 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   }
   wear('eyewear', who.eyewear)
   if (
-    who.headwear === 'bow' ||
-    who.headwear === 'cap' ||
-    who.headwear === 'sprout'
+    dressed &&
+    (who.headwear === 'bow' ||
+      who.headwear === 'cap' ||
+      who.headwear === 'sprout')
   ) {
     // Reserve the side opposite the crest. The seat stays fixed through
     // expressions, so a moving crest never makes a hat switch sides.
@@ -1376,7 +1391,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     )
   }
   wear('headwear', who.headwear)
-  if (who.neckwear === 'tie') {
+  if (dressed && who.neckwear === 'tie') {
     // The knot follows the mouth's lowest edge, including its skew. The
     // floor clips the blade, just as it clips the creature itself.
     const skew = Math.abs(Math.sin(g('mk') * RAD)) * mw
@@ -1536,7 +1551,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   }
   const propNodes = () => {
     const propCtx = {
-      ...ctx,
+      ...ctxOf(),
       propAt: swayed(
         propSpot(sh, baseY, spread, bound, 0.4 * R),
         x,
