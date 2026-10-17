@@ -39,7 +39,7 @@
     },
     "packages/avatar": {
       "name": "@awflow/avatar",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "bin": {
         "awflow-avatar": "./bin/awflow-avatar.mjs",
       },
@@ -59,7 +59,7 @@
     },
     "packages/avatar-element": {
       "name": "@awflow/avatar-element",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -73,7 +73,7 @@
     },
     "packages/avatar-export": {
       "name": "@awflow/avatar-export",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "bin": {
         "awflow-avatar-export": "./bin/awflow-avatar-export.mjs",
       },
@@ -92,7 +92,7 @@
     },
     "packages/avatar-react": {
       "name": "@awflow/avatar-react",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -113,7 +113,7 @@
     },
     "packages/avatar-solid": {
       "name": "@awflow/avatar-solid",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -133,7 +133,7 @@
     },
     "packages/avatar-svelte": {
       "name": "@awflow/avatar-svelte",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -155,7 +155,7 @@
     },
     "packages/avatar-vue": {
       "name": "@awflow/avatar-vue",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
