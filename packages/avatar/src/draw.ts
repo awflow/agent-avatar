@@ -49,6 +49,14 @@ export type Gaze = readonly [x: number, y: number]
 /** The static phase of every activity loop, in seconds. */
 export const REST_T = 0.9
 
+/**
+ * Where an avatar sits on its activity loops, from its tidied name: a team
+ * doing the same thing does not bob in step, and the server and the client
+ * agree on it. Radians, 0..2π.
+ */
+export const loopPhase = (key = '') =>
+  ((fnv1a(`${key}loop`) % 1000) / 1000) * 2 * Math.PI
+
 export type Pose = Channels & {
   /** 0..1, the blink closing both lids. */
   blink: number
@@ -161,7 +169,7 @@ export function thingGaze(face: FaceGeom, x: number, alt: number): Gaze {
  * thing in the corner; an explicit gaze wins over both.
  */
 export function restPose(
-  who: Pick<Axes, 'face'>,
+  who: Pick<Axes, 'face'> & { key?: string },
   expression: Expression,
   gaze?: Gaze,
   activity: Activity = 'idle',
@@ -183,7 +191,7 @@ export function restPose(
   if (expression === 'curious' && activity === 'idle') pose.rot = 7
   // idle adds no loop to the static pose, so v1 and v2 bytes hold
   if (activity !== 'idle') {
-    const loop = activityLoop(activity, REST_T, 0)
+    const loop = activityLoop(activity, REST_T, loopPhase(who.key))
     for (const k in loop) {
       if (k === 'alt' || k === 'x') continue
       pose[k as Channel] += loop[k as Channel]!
@@ -711,6 +719,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const ry = sh.ry * eyeS
   const lid0 = g('lid')
   const lidAsym = g('lidAsym')
+  const winkR = pose.winkR ?? 0
   const lower = clamp(g('lower'), 0, 1)
   const blink = pose.blink
   const pupil = g('pupil')
@@ -728,6 +737,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     const side = i === 0 ? -1 : 1
     const kk = `eye${i}`
     let lid = clamp(lid0 + (i === 0 ? lidAsym : -lidAsym * 0.3), 0, 1)
+    // a wink closes the right eye over whatever lid it already shows
+    if (i === 1) lid = Math.max(lid, clamp(winkR, 0, 1))
     lid = lid + (1 - lid) * blink
     defs.push(
       n('clipPath', `${kk}.clip`, { id: `${id}-e${i}` }, [

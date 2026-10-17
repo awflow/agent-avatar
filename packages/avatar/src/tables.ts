@@ -691,7 +691,7 @@ export const LATEST = 2
 /* ---------- state: channels and the 11 expressions ---------- */
 
 export const GROUPS = {
-  eyes: ['lid', 'lower', 'lidTilt', 'eyeS', 'lidAsym'],
+  eyes: ['lid', 'lower', 'lidTilt', 'eyeS', 'lidAsym', 'winkR'],
   pupil: ['pupil', 'gx', 'gy', 'shine'],
   brows: ['browY', 'browTilt', 'browArch', 'browW', 'browAsym'],
   mouth: ['mw', 'mt', 'mb', 'mx', 'my', 'mk'],
@@ -713,6 +713,8 @@ const BASE: Channels = {
   lidTilt: 0,
   eyeS: 1,
   lidAsym: 0,
+  // the right eye's own lid, for a wink; the lid it shows is the larger
+  winkR: 0,
   pupil: 1,
   gx: 0,
   gy: 0,

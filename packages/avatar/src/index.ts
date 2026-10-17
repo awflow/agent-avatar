@@ -17,6 +17,8 @@ export type { FxAnchor, FxKind, FxShape } from './fx'
 export { FX_KINDS, fxShapes } from './fx'
 export type { Axes, Identity, Persona } from './identity'
 export { AXES, identify, LISTS, tidy } from './identity'
+export type { Reaction, ReactionSpec } from './reactions'
+export { REACTIONS } from './reactions'
 export type { AvatarOptions } from './svg'
 export { settle, toSvg } from './svg'
 export type {

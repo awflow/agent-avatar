@@ -15,6 +15,7 @@ import {
   activityLoop,
   activityOf,
   blend,
+  type FxKind,
 } from './activity'
 import {
   clamp,
@@ -23,6 +24,7 @@ import {
   draw,
   frameOf,
   type Gaze,
+  loopPhase,
   type Node,
   type Pose,
   REST_T,
@@ -32,6 +34,7 @@ import {
   thingGaze,
   VB,
 } from './draw'
+import { REACTIONS, type Reaction, reactionOf } from './reactions'
 import {
   type Channel,
   type Channels,
@@ -245,9 +248,9 @@ const BLINK: Record<Expression, [number, number] | null> = {
 }
 
 /* the part of an activity's loop that restPose paints into a static pose */
-function restLoop(activity: Activity): Partial<Channels> {
+function restLoop(activity: Activity, phase: number): Partial<Channels> {
   if (activity === 'idle') return {}
-  const loop = activityLoop(activity, REST_T, 0)
+  const loop = activityLoop(activity, REST_T, phase)
   delete loop.alt
   delete loop.x
   return loop
@@ -357,6 +360,10 @@ export class Live {
   private fixed: Gaze | null = null
   private watch = false
   private rect: DOMRect | null = null
+  private phase: number
+  private reaction: { name: Reaction; t0: number } | null = null
+  private fxKind: FxKind | null = null
+  private fxP = 0
 
   constructor(
     private svg: SVGSVGElement,
@@ -369,13 +376,14 @@ export class Live {
   ) {
     this.state = expression
     this.activity = activityOf(activity)
+    this.phase = loopPhase(who.key)
     this.bind(tree, svg)
     this.setGaze(gaze)
     const start = restPose(who, expression, this.gaze(), this.activity)
     this.val = { ...start }
     // the server painted the static loop into the pose: from here `out`
     // carries it, so the springs settle on the bare blend and nothing jumps
-    const rest = restLoop(this.activity)
+    const rest = restLoop(this.activity, this.phase)
     for (const c in rest) {
       this.val[c as Channel] -= rest[c as Channel]!
       this.out[c as Channel] = rest[c as Channel]!
@@ -560,6 +568,16 @@ export class Live {
     if (prev === 'sleepy') this.bumps = []
   }
 
+  /**
+   * A one-shot gesture on top of whatever the face is doing; a new one
+   * replaces the running one. Unknown names and reduced motion do nothing.
+   */
+  react(name: Reaction) {
+    const r = reactionOf(name)
+    if (!r || this.reduced) return
+    this.reaction = { name: r, t0: this.clock }
+  }
+
   /** Straight to the rest pose of the current state, no motion. */
   private snap() {
     const rest = restPose(this.who, this.state, this.gaze(), this.activity)
@@ -576,6 +594,9 @@ export class Live {
     this.blinkT = -1
     this.blinkV = 0
     this.out = zero()
+    this.reaction = null
+    this.fxKind = null
+    this.fxP = 0
     this.paint()
   }
 
@@ -687,7 +708,7 @@ export class Live {
     // On the loop clock, which starts at the static phase the server painted.
     // What the static pose leaves out (altitude and shiver, every idle
     // channel) eases in over the first half second instead of popping.
-    const loop = activityLoop(this.activity, REST_T + t, 0)
+    const loop = activityLoop(this.activity, REST_T + t, this.phase)
     const ease = Math.min(1, t / 0.5)
     for (const c in loop) {
       const painted = this.activity !== 'idle' && c !== 'alt' && c !== 'x'
@@ -751,6 +772,29 @@ export class Live {
     } else if (!bl) this.blinkT = -1
     this.blinkV = blink
 
+    // the reaction, after the springs: additive, the blush takes the max
+    this.fxKind = null
+    this.fxP = 0
+    const re = this.reaction
+    if (re) {
+      const spec = REACTIONS[re.name]
+      const p = (t - re.t0) / spec.dur
+      if (p >= 1) this.reaction = null
+      else {
+        const d = spec.at(Math.max(0, p))
+        for (const c in d) {
+          const v = d[c as Channel]!
+          if (c === 'blush')
+            out.blush += Math.max(0, v - (this.val.blush + out.blush))
+          else out[c as Channel] += v
+        }
+        if (spec.fx) {
+          this.fxKind = spec.fx
+          this.fxP = Math.max(0, p)
+        }
+      }
+    }
+
     // the trait lags behind the body a little
     const R = frameOf(face).R
     const avY = -(this.val.alt + out.alt) * R
@@ -773,8 +817,8 @@ export class Live {
       // reduced motion freezes loops and fx at the static phase
       t: REST_T + (this.reduced ? 0 : this.clock),
       wob: 0,
-      fx: null,
-      fxP: 0,
+      fx: this.fxKind,
+      fxP: this.fxP,
       voice: -1,
     } as Pose
     for (const c of CHANNELS) pose[c] = this.val[c] + this.out[c]

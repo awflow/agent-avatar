@@ -12,10 +12,12 @@ export {
   type DrawOptions,
   draw,
   type Gaze,
+  loopPhase,
   type Node,
   type Pose,
   restPose,
 } from './draw'
+export { REACTIONS, type Reaction } from './reactions'
 export { type AvatarOptions, serialize, settle, toSvg } from './svg'
 export {
   deepOf,

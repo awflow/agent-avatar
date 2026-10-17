@@ -9,7 +9,10 @@ import { type AvatarOptions, serialize, settle } from './svg'
  * The rig on a fake DOM: rAF never fires (each test drives step() itself),
  * the IntersectionObserver is inert and reduced motion is a switch.
  */
-let reduce = false
+// one switch for every test file: the rig caches the first query it sees
+const g = globalThis as any
+g.__motion ??= { reduce: false }
+const motion: { reduce: boolean } = g.__motion
 beforeAll(() => {
   GlobalRegistrator.register()
   globalThis.requestAnimationFrame = () => 1
@@ -21,7 +24,7 @@ beforeAll(() => {
   // the rig caches one query for the page: read the switch live
   globalThis.matchMedia = ((q: string) => ({
     get matches() {
-      return reduce && q.includes('reduce')
+      return motion.reduce && q.includes('reduce')
     },
     addEventListener() {},
   })) as any
@@ -31,7 +34,7 @@ afterAll(async () => {
 })
 
 function mount(name: string, o: AvatarOptions = {}, reduced = false) {
-  reduce = reduced
+  motion.reduce = reduced
   const { who, pose, opts } = settle(name, o, true)
   const tree = draw(who, pose, opts)
   const host = document.createElement('div')
@@ -131,7 +134,7 @@ describe('Live.setActivity', () => {
     const set = proto.setAttribute
     const rm = proto.removeAttribute
     let writes: string[] = []
-    reduce = false
+    motion.reduce = false
     proto.setAttribute = function (k: string, v: string) {
       writes.push(`${k}=${v}`)
       return set.call(this, k, v)
