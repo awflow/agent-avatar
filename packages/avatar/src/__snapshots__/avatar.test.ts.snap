@@ -5,7 +5,6 @@ exports[`adapter subpath the main entry stays frozen 1`] = `
   "ACCESSORIES",
   "ACTIVITIES",
   "AXES",
-  "Avatar",
   "COLORS",
   "EXPRESSIONS",
   "FACES",

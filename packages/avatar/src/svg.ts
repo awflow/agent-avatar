@@ -1,6 +1,6 @@
 /*
  * toSvg: a name in, a standalone SVG string out. Same input, same bytes, on
- * any machine. Shares its defaults with <Avatar> through settle().
+ * any machine. Shares its defaults with every adapter through settle().
  */
 
 import { type Activity, activityOf } from './activity'

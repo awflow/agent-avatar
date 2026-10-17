@@ -6,35 +6,36 @@ A name in, a face out. Deterministic SVG avatars. Built on [Peek](https://peek.d
 npm install @awflow/avatar
 ```
 
-## React 19
+## Framework components
 
-Install React 19 or newer in your app, then render a face:
+The core renders plain SVG and has no framework dependency. For components:
 
-```tsx
-import { Avatar } from '@awflow/avatar'
+- React: [`@awflow/avatar-react`](../avatar-react)
+- Svelte: [`@awflow/avatar-svelte`](../avatar-svelte)
 
-<Avatar name='Linh' size={96} expression='happy' />
+```js
+import { toSvg } from '@awflow/avatar'
+
+const svg = toSvg('Linh', { size: 96, expression: 'happy' })
 ```
-
-Use `animate` for blinking and expression transitions, and
-`gaze='pointer'` to follow the pointer. Animation respects reduced motion.
 
 ## Accessories
 
 Dress a face with three independent slots:
 
-```tsx
-<Avatar name='Linh' eyewear='glasses' headwear='bow' />
-<Avatar name='Linh' eyewear='sunglasses' headwear='sprout' />
-<Avatar name='Linh' headwear='cap' neckwear='tie' animate />
+```js
+toSvg('Linh', { eyewear: 'glasses', headwear: 'bow' })
+toSvg('Linh', { eyewear: 'sunglasses', headwear: 'sprout' })
+toSvg('Linh', { headwear: 'cap', neckwear: 'tie' })
 ```
 
 Eyewear: `none`, `glasses`, `sunglasses`. Headwear: `none`, `bow`, `cap`,
 `sprout`. Neckwear: `none`, `tie`. All default to `none` at `peek@1`, so
 existing avatars stay unchanged. Slots combine and work with every
-expression, gaze and frame. The same options work with `toSvg`.
+expression, gaze and frame. The framework components take the same options
+as props.
 
-## Plain SVG, without React
+## Plain SVG and identity entry points
 
 The SVG and identity entry points have no runtime dependencies:
 
@@ -46,7 +47,7 @@ const svg = toSvg('Linh', { size: 96, expression: 'happy' })
 const identity = identify('Linh')
 ```
 
-The root entry point also exports `toSvg` and `identify` for React apps.
+The root entry point also exports `toSvg` and `identify`.
 The same normalized name and options produce the same SVG every time.
 
 

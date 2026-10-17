@@ -3,7 +3,9 @@
 A public npm avatar library: a string in, a deterministic SVG out. Built on
 Peek by Doan Labs (MIT) and extended. Turborepo on bun workspaces, Biome,
 TypeScript. Packages: `packages/avatar` (`@awflow/avatar`, core),
-`packages/avatar-svelte` (`@awflow/avatar-svelte`), `packages/typescript-config`.
+`packages/avatar-svelte` (`@awflow/avatar-svelte`), `packages/avatar-react`
+(`@awflow/avatar-react`), `packages/typescript-config`. The core never
+imports a framework.
 
 `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it. Never replace
 either with a real file.

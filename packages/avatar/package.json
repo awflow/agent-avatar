@@ -44,20 +44,13 @@
     "build": "bun scripts/build.ts",
     "prepack": "bun run build"
   },
-  "peerDependencies": {
-    "react": ">=19"
-  },
   "devDependencies": {
     "@awflow/typescript-config": "workspace:*",
     "@happy-dom/global-registrator": "^21.0.3",
     "@types/bun": "latest",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
     "typescript": "^6.0.2"
   },
-  "description": "Deterministic SVG avatars from a name, with expressions and a React component.",
+  "description": "Deterministic SVG avatars from a name, with expressions and a framework-free live mount.",
   "license": "MIT",
   "author": "AWFlow",
   "homepage": "https://github.com/awflow/avatar",
@@ -69,24 +62,17 @@
   "keywords": [
     "avatar",
     "svg",
-    "react",
     "deterministic",
     "avatar-library"
   ],
   "files": [
     "dist",
     "src/**/*.ts",
-    "src/**/*.tsx",
     "!src/**/*.test.ts",
     "!src/test/**",
     "README.md"
   ],
   "publishConfig": {
     "access": "public"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
   }
 }

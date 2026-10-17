@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
-import { createElement } from 'react'
-import { renderToString } from 'react-dom/server'
 import { ACTIVITIES, type Activity } from './activity'
 import { Live } from './animate'
-import { Avatar } from './avatar'
 import { draw, type Node, ringWalk, seat } from './draw'
 import { FX_POOL } from './fx'
 import { identify, LISTS } from './identity'
@@ -778,19 +775,15 @@ describe('plugins on a page', () => {
       expect(server).toContain('r="8"')
       expect(settle(name, o).who.prop as string).toBe('flag')
       expect(toSvg(name, o)).toBe(server)
-      const react = renderToString(
-        createElement(Avatar, { name, ...o, animate: true }),
-      )
-      expect(
-        renderToString(createElement(Avatar, { name, ...o, animate: true })),
-      ).toBe(react)
-      expect(react).toContain('r="8"')
       // the client's first live paint writes nothing over the server frame
       const proto = (globalThis as any).Element.prototype
       const set = proto.setAttribute
       const writes: string[] = []
       const { who, pose, opts } = settle(name, o, true)
       const tree = draw(who, pose, opts)
+      // the live tree an animated adapter paints on the server
+      expect(serialize(tree)).toContain('r="8"')
+      expect(serialize(draw(who, pose, opts))).toBe(serialize(tree))
       const host = document.createElement('div')
       host.innerHTML = serialize(tree)
       const svg = host.querySelector('svg') as unknown as SVGSVGElement

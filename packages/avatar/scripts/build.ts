@@ -31,7 +31,6 @@ const result = await Bun.build({
   splitting: true,
   target: 'browser',
   format: 'esm',
-  external: ['react'],
   // Bun would inline its own NODE_ENV here and leave development warnings
   // on (or off) for good. Kept as a literal, the consumer's bundler or
   // runtime decides, as with any library.

@@ -1,12 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { createElement } from 'react'
-import { renderToString } from 'react-dom/server'
 import * as adapter from './adapter'
-import { Avatar } from './avatar'
 import { depth, draw, type Node, restPose } from './draw'
 import { fnv1a, identify, seed, tidy } from './identity'
 import * as entry from './index'
-import { settle, toSvg } from './svg'
+import { serialize, settle, toSvg } from './svg'
 import {
   ACCESSORIES,
   type AccessorySlot,
@@ -57,15 +54,6 @@ describe('determinism', () => {
     expect(toSvg('  Ada\tLovelace', { title: false })).toBe(
       toSvg('ada lovelace', { title: false }),
     )
-  })
-
-  test('renderToString of <Avatar> is stable', () => {
-    const el = createElement(Avatar, { name: 'Ada', expression: 'happy' })
-    const a = renderToString(el)
-    expect(renderToString(el)).toBe(a)
-    expect(a).toContain('aria-label="Ada"')
-    const live = createElement(Avatar, { name: 'Ada', animate: true })
-    expect(renderToString(live)).toBe(renderToString(live))
   })
 })
 
@@ -512,7 +500,7 @@ describe('accessories', () => {
     HEAVY,
   )
 
-  test('accessories are deterministic with frames, riso, gaze and React SSR', () => {
+  test('accessories are deterministic with frames, riso, gaze and the live tree', () => {
     for (const frame of ['ink', 'bone', 'paper', 'none'] as const) {
       for (const square of [true, false]) {
         for (const eyes of PARTS.eyes) {
@@ -531,15 +519,15 @@ describe('accessories', () => {
           const svg = toSvg('Linh', o)
           expect(toSvg('Linh', o)).toBe(svg)
           expect(svg).toContain('M-4 15L-13 63')
-          const el = createElement(Avatar, {
-            name: 'Linh',
-            ...o,
-            animate: true,
-          })
-          const react = renderToString(el)
-          expect(renderToString(el)).toBe(react)
-          expect(react).toContain('M-4 15L-13 63')
-          expect(react).toContain('aria-label="Linh"')
+          // the live tree an animated adapter paints on the server
+          const live = () => {
+            const s = settle('Linh', o, true)
+            return serialize(draw(s.who, s.pose, s.opts))
+          }
+          const first = live()
+          expect(live()).toBe(first)
+          expect(first).toContain('M-4 15L-13 63')
+          expect(first).toContain('aria-label="Linh"')
         }
       }
     }
@@ -571,6 +559,9 @@ describe('adapter subpath', () => {
     // deliberately added in Plan 3: what a plugin author draws with
     for (const name of ['el', 'crownTop', 'swingOf'])
       expect(typeof (entry as Record<string, unknown>)[name]).toBe('function')
+    // deliberately removed in Plan 4: the React component moved to
+    // @awflow/avatar-react; the core never imports a framework
+    expect('Avatar' in entry).toBe(false)
     // deliberately added in Plan 4: the framework-free live handle every
     // adapter wraps
     for (const name of ['mount', 'attach', 'isIdentityChange'])

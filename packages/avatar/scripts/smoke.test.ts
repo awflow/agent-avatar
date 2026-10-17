@@ -1,8 +1,7 @@
 /*
  * The published build, end to end: every entry point is built into one
- * temporary outdir (inside the package, so `react` still resolves), then a
- * plugin registered through the main entry must be visible through the
- * adapter and ai entries. One registry across entries is the contract.
+ * temporary outdir inside the package, then a plugin registered through
+ * the main entry must be visible through the adapter and ai entries. One registry across entries is the contract.
  */
 import { afterAll, beforeAll, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'

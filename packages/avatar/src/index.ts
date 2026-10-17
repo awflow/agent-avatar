@@ -1,7 +1,5 @@
 export type { Activity, ActivitySpec } from './activity'
 export { ACTIVITIES, activityLoop, blend } from './activity'
-export type { AvatarProps } from './avatar'
-export { Avatar } from './avatar'
 export type {
   DrawOptions,
   Frame,
@@ -11,7 +9,7 @@ export type {
   Pose,
   Ring,
 } from './draw'
-/** Low level: the drawing tree that toSvg and <Avatar> both render. */
+/** Low level: the drawing tree that toSvg and every adapter render. */
 export { draw } from './draw'
 export type { FxAnchor, FxKind, FxShape } from './fx'
 export { FX_KINDS, fxShapes } from './fx'
