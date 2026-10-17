@@ -176,6 +176,7 @@ export function activityLoop(
   activity: Activity,
   t: number,
   phase: number,
+  flap = true,
 ): Partial<Channels> {
   const ph = phase
   const o: Partial<Channels> = {}
@@ -203,9 +204,11 @@ export function activityLoop(
       add('sy', 0.012 * sin(2.1 * t + ph))
   }
   if (activity === 'speaking') {
-    const m = 0.5 + 0.5 * sin(13 * t + ph) * sin(3.7 * t + 1.3)
-    add('mb', 0.85 * m)
-    add('mt', -0.35 * m)
+    if (flap) {
+      const m = 0.5 + 0.5 * sin(13 * t + ph) * sin(3.7 * t + 1.3)
+      add('mb', 0.85 * m)
+      add('mt', -0.35 * m)
+    }
     add('alt', 0.03 * sin(6 * t))
   } else if (activity === 'listening') {
     add('rot', 1.5 * sin(1.3 * t))

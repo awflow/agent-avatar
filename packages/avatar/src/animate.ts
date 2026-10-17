@@ -257,6 +257,11 @@ function restLoop(activity: Activity, phase: number): Partial<Channels> {
   return loop
 }
 
+/* a pulse closes over 120 ms; with no voice source the mouth then stays shut
+ * for a second before the built-in flap comes back */
+const PULSE_DECAY = 0.12
+const PULSE_HOLD = 1
+
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
 const zero = () => {
   const o = {} as Channels
@@ -368,6 +373,11 @@ export class Live {
   private reaction: { name: Reaction; t0: number } | null = null
   private fxKind: FxKind | null = null
   private fxP = 0
+  private voiceSrc: (() => number) | null = null
+  private pulseAmt = 0
+  private pulseAt = -1
+  // the voice level painted last frame, -1 when the built-in flap runs
+  private voice = -1
 
   constructor(
     private svg: SVGSVGElement,
@@ -582,6 +592,46 @@ export class Live {
     this.reaction = { name: r, t0: this.clock }
   }
 
+  /**
+   * A live mouth level, 0..1, read once a frame while the avatar speaks. It
+   * replaces the built-in flap. NaN, infinities and out of range values are
+   * treated as 0 or clamped. `null` takes the source away.
+   */
+  setVoice(source: (() => number) | null) {
+    this.voiceSrc = typeof source === 'function' ? source : null
+  }
+
+  /**
+   * One token or chunk of speech: opens the mouth by `strength` (0..1,
+   * default 1) and lets it close over 120 ms. Under reduced motion, which
+   * freezes the loops the mouth rides on, it does nothing.
+   */
+  pulse(strength = 1) {
+    if (this.reduced) return
+    this.pulseAmt = Number.isFinite(strength) ? clamp(strength, 0, 1) : 1
+    this.pulseAt = this.clock
+  }
+
+  /** The voice level now, or -1 when the built-in flap should run. */
+  private level(): number {
+    if (this.activity !== 'speaking') return -1
+    const age = this.clock - this.pulseAt
+    const pulsing = this.pulseAt >= 0 && age < PULSE_HOLD
+    if (!this.voiceSrc && !pulsing) return -1
+    let v = 0
+    if (this.voiceSrc) {
+      try {
+        const x = Number(this.voiceSrc())
+        v = Number.isFinite(x) ? clamp(x, 0, 1) : 0
+      } catch {
+        v = 0
+      }
+    }
+    if (pulsing && age < PULSE_DECAY)
+      v = Math.max(v, this.pulseAmt * (1 - age / PULSE_DECAY))
+    return v
+  }
+
   /** Straight to the rest pose of the current state, no motion. */
   private snap() {
     const rest = restPose(this.who, this.state, this.gaze(), this.activity)
@@ -601,6 +651,7 @@ export class Live {
     this.reaction = null
     this.fxKind = null
     this.fxP = 0
+    this.voice = -1
     this.swing = { angle: 0, vel: 0 }
     this.motion = null
     this.paint()
@@ -714,7 +765,13 @@ export class Live {
     // On the loop clock, which starts at the static phase the server painted.
     // What the static pose leaves out (altitude and shiver, every idle
     // channel) eases in over the first half second instead of popping.
-    const loop = activityLoop(this.activity, REST_T + t, this.phase)
+    const voice = this.level()
+    this.voice = voice
+    const loop = activityLoop(this.activity, REST_T + t, this.phase, voice < 0)
+    if (voice >= 0) {
+      out.mb += 0.85 * voice
+      out.mt -= 0.35 * voice
+    }
     const ease = Math.min(1, t / 0.5)
     for (const c in loop) {
       const painted = this.activity !== 'idle' && c !== 'alt' && c !== 'x'
@@ -847,7 +904,7 @@ export class Live {
       wob: this.reduced ? 0 : this.swing.angle,
       fx: this.fxKind,
       fxP: this.fxP,
-      voice: -1,
+      voice: this.reduced ? -1 : this.voice,
     } as Pose
     for (const c of CHANNELS) pose[c] = this.val[c] + this.out[c]
     pose.lag = this.reduced

@@ -244,3 +244,106 @@ describe('accessory physics', () => {
     expect(rig.swing.angle).toBe(0)
   })
 })
+
+describe('Live lip-sync', () => {
+  const open = (rig: any) => rig.val.mb + rig.out.mb - (rig.val.mt + rig.out.mt)
+  const frames = (live: Live, n: number, dt = 1 / 60) => {
+    for (let i = 0; i < n; i++) live.step(dt)
+  }
+
+  test('a full voice opens the mouth wider than silence', () => {
+    const a = mount('Linh', { activity: 'speaking' })
+    a.live.setVoice(() => 1)
+    frames(a.live, 10)
+    const b = mount('Linh', { activity: 'speaking' })
+    b.live.setVoice(() => 0)
+    frames(b.live, 10)
+    expect(open(a.rig)).toBeGreaterThan(open(b.rig))
+    a.live.destroy()
+    b.live.destroy()
+  })
+
+  test('the voice replaces the built-in flap', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' })
+    live.setVoice(() => 0)
+    const seen = new Set<string>()
+    for (let i = 0; i < 40; i++) {
+      live.step(1 / 60)
+      seen.add(open(rig).toFixed(3))
+    }
+    // a silent source holds the mouth still, the flap would move it
+    expect(seen.size).toBeLessThan(4)
+    live.destroy()
+  })
+
+  test('a pulse opens the mouth and decays to closed in 200 ms', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' })
+    live.setVoice(() => 0)
+    frames(live, 60)
+    const closed = open(rig)
+    live.pulse()
+    live.step(1 / 120)
+    frames(live, 5)
+    expect(open(rig)).toBeGreaterThan(closed + 0.2)
+    frames(live, 12)
+    expect(open(rig)).toBeCloseTo(closed, 1)
+    live.destroy()
+  })
+
+  test('a pulse alone, with no source, closes after decaying', () => {
+    const { live, rig } = mount('Linh', { activity: 'speaking' })
+    frames(live, 30)
+    live.pulse(0.5)
+    frames(live, 3)
+    const mid = open(rig)
+    frames(live, 14)
+    const end = open(rig)
+    expect(mid).toBeGreaterThan(end)
+    live.destroy()
+  })
+
+  test('NaN, infinity and out of range stay finite and clamped', () => {
+    for (const v of [NaN, Infinity, -Infinity, 7, -3]) {
+      const { live, svg, rig } = mount('Linh', { activity: 'speaking' })
+      live.setVoice(() => v)
+      frames(live, 20)
+      expect(svg.outerHTML).not.toMatch(/NaN|Infinity/)
+      expect(Number.isFinite(open(rig))).toBe(true)
+      live.destroy()
+    }
+    const hi = mount('Linh', { activity: 'speaking' })
+    hi.live.setVoice(() => 99)
+    const one = mount('Linh', { activity: 'speaking' })
+    one.live.setVoice(() => 1)
+    frames(hi.live, 30)
+    frames(one.live, 30)
+    expect(open(hi.rig)).toBeCloseTo(open(one.rig), 6)
+    hi.live.destroy()
+    one.live.destroy()
+  })
+
+  test('outside speaking the voice has no effect', () => {
+    const a = mount('Linh', { activity: 'listening' })
+    a.live.setVoice(() => 1)
+    a.live.pulse()
+    const b = mount('Linh', { activity: 'listening' })
+    for (let i = 0; i < 20; i++) {
+      a.live.step(1 / 60)
+      b.live.step(1 / 60)
+    }
+    expect(open(a.rig)).toBeCloseTo(open(b.rig), 6)
+    a.live.destroy()
+    b.live.destroy()
+  })
+
+  test('null removes the source and the node count never changes', () => {
+    const { live, count } = mount('Linh', { activity: 'speaking' })
+    const n = count()
+    live.setVoice(() => 1)
+    frames(live, 5)
+    live.setVoice(null)
+    frames(live, 5)
+    expect(count()).toBe(n)
+    live.destroy()
+  })
+})
