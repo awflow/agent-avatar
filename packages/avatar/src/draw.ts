@@ -424,6 +424,10 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const shine = clamp(g('shine'), 0, 1)
   const sw = sh.brow.w * st
   const bead = who.eyes === 'bead'
+  // a solid eye is one ink shape, no white: pill, dot or spark. Like a bead
+  // it leans whole toward its gaze, and its lids cut it the same way.
+  const solid =
+    who.eyes === 'pill' || who.eyes === 'dot' || who.eyes === 'spark'
   const eyes = sh.eyes.map(([ex, ey], i) => {
     const side = i === 0 ? -1 : 1
     const kk = `eye${i}`
@@ -456,7 +460,72 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     // capped so a small rimmed eye stays an eye, not an ink blot
     const rimW = Math.min(sw * 0.8, Math.min(sh.rx, sh.ry) * 0.28)
     const inner: Node[] = []
-    if (!bead)
+    // a smiling solid eye trades its shape for an upturned arc
+    const happy = solid
+      ? smooth(0.22, 0.36, lower) * (1 - smooth(0.2, 0.3, lid))
+      : 0
+    if (solid) {
+      const pk = 0.4 + 0.6 * pupil
+      const shapes: Node[] = []
+      if (who.eyes === 'pill') {
+        const w = rx * 0.42 * pk
+        const h = Math.max(w, ry * 0.9 * pk)
+        shapes.push(
+          n('rect', `${kk}.solid.shape`, {
+            x: f2(-w),
+            y: f2(-h),
+            width: f2(2 * w),
+            height: f2(2 * h),
+            rx: f2(w),
+            fill: T.pupil(slot),
+          }),
+        )
+      } else if (who.eyes === 'dot') {
+        shapes.push(
+          n('circle', `${kk}.solid.shape`, {
+            cx: 0,
+            cy: 0,
+            r: f2(rx * 0.42 * pk),
+            fill: T.pupil(slot),
+          }),
+        )
+      } else {
+        const erx = rx * 0.48 * pk
+        const ery = ry * 0.72 * pk
+        shapes.push(
+          n('ellipse', `${kk}.solid.shape`, {
+            cx: 0,
+            cy: 0,
+            rx: f2(erx),
+            ry: f2(ery),
+            fill: T.pupil(slot),
+          }),
+          n('circle', `${kk}.shine`, {
+            cx: f2(erx * 0.38),
+            cy: f2(-ery * 0.42),
+            r: f2(rx * 0.2 * pk),
+            fill: INK.paper,
+            opacity: f2(shine),
+          }),
+          n('circle', `${kk}.shine2`, {
+            cx: f2(-erx * 0.4),
+            cy: f2(ery * 0.45),
+            r: f2(rx * 0.09 * pk),
+            fill: INK.paper,
+            opacity: f2(shine),
+          }),
+        )
+      }
+      inner.push(
+        n(
+          'g',
+          `${kk}.solid`,
+          { opacity: happy > 0.01 ? f2(1 - happy) : undefined },
+          shapes,
+        ),
+      )
+    }
+    if (!bead && !solid)
       inner.push(
         n('ellipse', `${kk}.white`, {
           cx: 0,
@@ -466,21 +535,22 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           fill: T.sclera(slot),
         }),
       )
-    inner.push(
-      n('circle', `${kk}.pupil`, {
-        cx: f2(px),
-        cy: f2(py),
-        r: f2(pr),
-        fill: T.pupil(slot),
-      }),
-      n('circle', `${kk}.shine`, {
-        cx: f2(px + pr * 0.44),
-        cy: f2(py - pr * 0.44),
-        r: f2(pr * (bead ? 0.26 : 0.3)),
-        fill: INK.paper,
-        opacity: f2(shine),
-      }),
-    )
+    if (!solid)
+      inner.push(
+        n('circle', `${kk}.pupil`, {
+          cx: f2(px),
+          cy: f2(py),
+          r: f2(pr),
+          fill: T.pupil(slot),
+        }),
+        n('circle', `${kk}.shine`, {
+          cx: f2(px + pr * 0.44),
+          cy: f2(py - pr * 0.44),
+          r: f2(pr * (bead ? 0.26 : 0.3)),
+          fill: INK.paper,
+          opacity: f2(shine),
+        }),
+      )
     if (who.eyes === 'ring')
       inner.push(
         n('ellipse', `${kk}.rim`, {
@@ -563,6 +633,21 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         opacity: co > 0.01 ? f2(co) : 0,
       }),
     )
+    if (solid) {
+      // the smiling solid eye: an arc bowed upward, the width of the eye
+      const aw = rx * 0.62
+      const ay = ry * 0.22
+      parts.push(
+        n('path', `${kk}.happy`, {
+          d: `M${f2(-aw)} ${f2(ay)}Q0 ${f2(ay - ry * 1.1)} ${f2(aw)} ${f2(ay)}`,
+          fill: 'none',
+          stroke: inkC,
+          'stroke-linecap': 'round',
+          'stroke-width': f2(sw * 1.25),
+          opacity: happy > 0.01 ? f2(happy) : 0,
+        }),
+      )
+    }
     return n(
       'g',
       kk,
@@ -570,7 +655,9 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         // a bead has no white to show where it looks, so the whole eye leans
         transform: bead
           ? `translate(${f2(ex + side * spread + gx * 6)} ${f2(ey + gy * 6)})`
-          : `translate(${f2(ex + side * spread)} ${ey})`,
+          : solid
+            ? `translate(${f2(ex + side * spread + gx * rx * 0.3)} ${f2(ey + gy * ry * 0.3)})`
+            : `translate(${f2(ex + side * spread)} ${ey})`,
       },
       parts,
     )
@@ -582,7 +669,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const arch = g('browArch')
   const basym = g('browAsym')
   const bw = sw * g('browW')
-  const brows = sh.eyes.map(([ex], i) => {
+  // `none` parts leave no node at all: the identity decides, never the pose
+  const brows = (who.brows === 'none' ? [] : sh.eyes).map(([ex], i) => {
     const side = i === 0 ? -1 : 1
     const hw = sh.brow.hw
     const c = -sh.brow.arch * arch
@@ -668,19 +756,51 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           ? `M${f2(-mw)} 0C${f2(-mw * 0.5)} ${f2(mid)} ${f2(mw * 0.5)} ${f2(mid)} ${f2(mw)} 0`
           : `M${f2(-mw)} 0C${f2(-mw)} ${f2(mb * kb)} ${f2(mw)} ${f2(mb * kb)} ${f2(mw)} 0C${f2(mw)} ${f2(mt * kb)} ${f2(-mw)} ${f2(mt * kb)} ${f2(-mw)} 0Z`
   const open = who.mouth === 'line'
-  const mouth = n('path', 'mouth', {
-    d,
-    transform: `translate(${f2(m.x + g('mx'))} ${f2(m.y + g('my'))}) rotate(${f2(g('mk'))})`,
-    fill: open ? 'none' : inkC,
-    stroke: inkC,
-    'stroke-linecap': 'round',
-    'stroke-linejoin': 'round',
-    'stroke-width': f2(open ? sw : m.sw * st),
-  })
+  const mouthT = `translate(${f2(m.x + g('mx'))} ${f2(m.y + g('my'))}) rotate(${f2(g('mk'))})`
+  const mouths: Node[] = []
+  if (who.mouth === 'cat') {
+    // two small bows meeting in the middle; the lips' middle sets how they
+    // curl, and a gap between the lips drops a little mouth under them
+    const k = clamp(mid * 0.7, -m.d, m.d)
+    const gap = Math.max(0, mb - mt)
+    const op = smooth(m.d * 0.55, m.d * 0.9, gap)
+    const ory = gap * 0.42 * (0.5 + 0.5 * op)
+    mouths.push(
+      n('g', 'mouth', { transform: mouthT }, [
+        n('ellipse', 'mouth.open', {
+          cx: 0,
+          cy: f2(Math.max(0, k * 0.5) + ory * 0.8),
+          rx: f2(Math.max(3, mw * 0.6)),
+          ry: f2(Math.max(1, ory)),
+          fill: inkC,
+          opacity: op > 0.01 ? f2(op) : 0,
+        }),
+        n('path', 'mouth.line', {
+          d: `M${f2(-mw)} 0Q${f2(-mw / 2)} ${f2(k)} 0 0Q${f2(mw / 2)} ${f2(k)} ${f2(mw)} 0`,
+          fill: 'none',
+          stroke: inkC,
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          'stroke-width': f2(sw),
+        }),
+      ]),
+    )
+  } else if (who.mouth !== 'none')
+    mouths.push(
+      n('path', 'mouth', {
+        d,
+        transform: mouthT,
+        fill: open ? 'none' : inkC,
+        stroke: inkC,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'stroke-width': f2(open ? sw : m.sw * st),
+      }),
+    )
 
   // cheeks
   const blush = clamp(g('blush'), 0, 1)
-  const cheeks = sh.cheeks.map(([cx, cy], i) => {
+  const cheeks = (who.cheeks === 'none' ? [] : sh.cheeks).map(([cx, cy], i) => {
     const key = `cheek${i}`
     const at = {
       opacity: f2(blush),
@@ -728,9 +848,11 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // the crown outline instead of a spot on its old face
   const hair = g('hair')
   const lag = pose.lag
-  let traitT: string
-  let shape: Node
-  if (who.trait === 'square') {
+  let traitT = ''
+  let shape: Node | null = null
+  if (who.trait === 'none') {
+    // no crest
+  } else if (who.trait === 'square') {
     const s = seat(sh.crown, 22 + hair * 10, 0)
     traitT = `translate(${f2(s.x)} ${f2(s.y + lag)}) rotate(${f2(s.a + 22 + hair * 23)})`
     shape = n('rect', 'trait.shape', {
@@ -788,7 +910,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       'stroke-linejoin': 'round',
     })
   }
-  const trait = n('g', 'trait', { transform: traitT }, [shape])
+  const trait = shape ? [n('g', 'trait', { transform: traitT }, [shape])] : []
 
   // Wardrobe lives on the same body transform as the face. Glasses grow
   // around the eye sockets, never around the pupils, so gaze stays free.
@@ -1028,7 +1150,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(-0.55, 0.45),
           filter: riso ? `url(#${id}-pA)` : undefined,
         },
-        [bodyNode, ...cheeks, trait],
+        [bodyNode, ...cheeks, ...trait],
       ),
       n(
         'g',
@@ -1037,7 +1159,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(0.6, -0.5),
           filter: riso ? `url(#${id}-pB)` : undefined,
         },
-        [...eyes, ...brows, mouth, ...wardrobe],
+        [...eyes, ...brows, ...mouths, ...wardrobe],
       ),
     ],
   )

@@ -333,8 +333,9 @@ test('brows never leave the face, even raised on the widest persona', () => {
     node.key === key
       ? node
       : node.children.map((c) => find(c, key)).find(Boolean)
+  // every brow but `none`, which draws nothing to keep inside
   for (const face of Object.keys(FACES) as (keyof typeof FACES)[])
-    for (const brows of PARTS.brows)
+    for (const brows of PARTS.brows.filter((b) => b !== 'none'))
       for (const expression of Object.keys(EXPRESSIONS) as Expression[]) {
         const { who, opts } = settle('x', { shape: face, brows })
         const p = who.persona
