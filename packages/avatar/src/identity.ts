@@ -17,6 +17,7 @@ import {
   COLORS,
   type Color,
   type Decor,
+  DRESS,
   type Eyes,
   type Eyewear,
   FACES,
@@ -127,8 +128,14 @@ export function identify(
     if (!dress || version < 2) return pick(axis)
     const s = seed(name, `dress:${axis}`, version)
     const list = LISTS[axis]
+    // the newest pinned table at or below this version
+    const pinned = Object.keys(DRESS)
+      .map(Number)
+      .filter((v) => v <= version)
+      .sort((a, b) => b - a)[0]!
+    const count = DRESS[pinned]![axis]
     return (
-      s % 100 < odds ? list[1 + ((s >>> 8) % (list.length - 1))] : 'none'
+      s % 100 < odds ? list[1 + ((s >>> 8) % (count - 1))] : 'none'
     ) as Identity[A]
   }
 

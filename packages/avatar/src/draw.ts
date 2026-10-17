@@ -21,7 +21,7 @@ import {
   type FaceGeom,
   INK,
 } from './tables'
-import type { Ink, Theme } from './themes'
+import { type Ink, THEMES, type Theme } from './themes'
 
 export type Node = {
   tag: string
@@ -61,7 +61,7 @@ export type DrawOptions = {
   size: number
   frame: Frame
   /** The palette and structure inks. */
-  theme: Theme
+  theme?: Theme
   /** A resolved body ink (a hex colour) that replaces the theme's slot. */
   ink?: Ink
   /** false clips the frame to a circle. */
@@ -483,9 +483,11 @@ function skinOf(
 
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const sh: FaceGeom = FACES[who.face]
-  const slot: Ink = o.ink ?? o.theme.colors[who.color]
+  const T = o.theme ?? THEMES.soft
+  const slot: Ink = o.ink ?? T.colors[who.color]
   const { body: fill, deep } = slot
-  const T = o.theme
+  // bead, pill, dot and spark are one ink shape: a theme may colour them apart from the pupil
+  const solidInk = T.solid ?? T.pupil
   const inkC = T.ink(slot)
   const frameFill =
     o.frame === 'theme'
@@ -728,7 +730,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
             width: f2(2 * w),
             height: f2(2 * h),
             rx: f2(w),
-            fill: T.pupil(slot),
+            fill: solidInk(slot),
           }),
         )
       } else if (who.eyes === 'dot') {
@@ -737,7 +739,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
             cx: 0,
             cy: 0,
             r: f2(rx * 0.42 * pk),
-            fill: T.pupil(slot),
+            fill: solidInk(slot),
           }),
         )
       } else {
@@ -749,7 +751,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
             cy: 0,
             rx: f2(erx),
             ry: f2(ery),
-            fill: T.pupil(slot),
+            fill: solidInk(slot),
           }),
           n('circle', `${kk}.shine`, {
             cx: f2(erx * 0.38),
@@ -792,7 +794,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           cx: f2(px),
           cy: f2(py),
           r: f2(pr),
-          fill: T.pupil(slot),
+          fill: bead ? solidInk(slot) : T.pupil(slot),
         }),
         n('circle', `${kk}.shine`, {
           cx: f2(px + pr * 0.44),

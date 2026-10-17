@@ -676,6 +676,16 @@ export const VERSIONS: Record<number, Record<Axis, number>> = {
     decor: 1,
   },
 }
+/**
+ * How many entries of each wardrobe list a dressed identity (v2+) rolls past
+ * 'none'. Pinned per version so appending wardrobe items never moves a face.
+ */
+export const DRESS: Record<
+  number,
+  Record<'headwear' | 'eyewear' | 'neckwear' | 'decor', number>
+> = {
+  2: { headwear: 13, eyewear: 7, neckwear: 6, decor: 5 },
+}
 export const LATEST = 2
 
 /* ---------- state: channels and the 11 expressions ---------- */

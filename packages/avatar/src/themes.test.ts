@@ -52,8 +52,36 @@ describe('themes', () => {
   })
 
   test('defineTheme registers', () => {
-    defineTheme({ ...THEMES.soft, name: 'test' })
-    expect(themeOf('test').name).toBe('test')
-    expect(themeOf('nope')).toBe(THEMES.soft)
+    // a unique name, put back to soft afterwards so nothing leaks
+    const name = 'themes-test-registered'
+    try {
+      defineTheme({ ...THEMES.soft, name })
+      expect(themeOf(name).name).toBe(name)
+      expect(themeOf('nope')).toBe(THEMES.soft)
+    } finally {
+      defineTheme({ ...THEMES.soft, name })
+    }
+  })
+
+  test('neon solid eyes use the deep ink, soft is unchanged', () => {
+    const deep = (c: keyof typeof COLORS) => THEMES.neon.colors[c].deep
+    for (const eyes of ['bead', 'pill', 'dot', 'spark'] as const) {
+      const svg = toSvg('Linh', {
+        eyes,
+        theme: 'neon',
+        color: 'lavender',
+        frame: 'none',
+      })
+      expect(svg).toContain(`fill="${deep('lavender')}"`)
+      expect(svg).not.toContain('fill="#0D0E13"')
+    }
+    // neon pupils on paper keep the dark pupil
+    expect(
+      toSvg('Linh', { eyes: 'oval', theme: 'neon', frame: 'none' }),
+    ).toContain('#0D0E13')
+    for (const eyes of ['bead', 'pill', 'dot', 'spark'] as const)
+      expect(toSvg('Linh', { eyes, theme: 'soft', version: 1 })).toBe(
+        toSvg('Linh', { eyes, version: 1 }),
+      )
   })
 })

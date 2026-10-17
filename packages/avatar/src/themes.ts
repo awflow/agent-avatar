@@ -19,6 +19,8 @@ export type Theme = {
   ink: (c: Ink) => string
   sclera: (c: Ink) => string
   pupil: (c: Ink) => string
+  /** Solid eyes (bead, pill, dot, spark); defaults to `pupil`. */
+  solid?: (c: Ink) => string
   /** Hash motifs when true. */
   motifs: boolean
   motifInk: (c: Ink) => string
@@ -153,6 +155,7 @@ const neon: Theme = {
   ink: (c) => c.deep,
   sclera: (c) => c.deep,
   pupil: () => '#0D0E13',
+  solid: (c) => c.deep,
   motifs: true,
   motifInk: (c) => c.deep,
   motifOpacity: 0.22,

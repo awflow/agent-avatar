@@ -6,7 +6,14 @@
  */
 
 export { Live } from './animate'
-export { draw, type Gaze, type Node, restPose } from './draw'
+export {
+  type DrawOptions,
+  draw,
+  type Gaze,
+  type Node,
+  type Pose,
+  restPose,
+} from './draw'
 export { type AvatarOptions, serialize, settle, toSvg } from './svg'
 export {
   deepOf,

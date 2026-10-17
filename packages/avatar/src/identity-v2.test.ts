@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { identify } from './identity'
+import { fnv1a, identify } from './identity'
 import { toSvg } from './svg'
-import { ACCESSORIES, COLORS, FACES, PARTS } from './tables'
+import { ACCESSORIES, COLORS, DRESS, FACES, PARTS } from './tables'
 
 const names = (n: number) => Array.from({ length: n }, (_, i) => `name ${i}`)
 
@@ -22,6 +22,33 @@ describe('identity v2', () => {
       expect(who.headwear).toBe('none')
       expect(who.neckwear).toBe('none')
     }
+  })
+
+  test('dressed wardrobe is pinned', () => {
+    const wardrobe = (n: string) => {
+      const w = identify(n, { dress: true })
+      return [w.eyewear, w.headwear, w.neckwear, w.decor].join(',')
+    }
+    expect(
+      ['Ada Lovelace', 'Linh', 'Đoàn', '東京'].map(wardrobe),
+    ).toMatchInlineSnapshot(`
+        [
+          "none,none,none,none",
+          "none,party,none,none",
+          "none,none,none,none",
+          "none,none,none,none",
+        ]
+      `)
+    expect(DRESS[2]).toEqual({
+      headwear: 13,
+      eyewear: 7,
+      neckwear: 6,
+      decor: 5,
+    })
+    // a wide sweep, so a moved pick anywhere shows
+    expect(fnv1a(names(400).map(wardrobe).join(';'))).toMatchInlineSnapshot(
+      `1561131097`,
+    )
   })
 
   test('v1 ignores dress', () => {

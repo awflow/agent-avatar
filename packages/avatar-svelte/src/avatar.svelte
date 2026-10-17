@@ -11,7 +11,7 @@
   import { untrack } from 'svelte'
   import NodeView from './node.svelte'
 
-  type Props = Omit<AvatarOptions, 'gaze' | 'id'> & {
+  type Props = Omit<AvatarOptions, 'gaze' | 'id' | 'style'> & {
     name: string
     gaze?: Gaze | 'pointer'
     animate?: boolean
