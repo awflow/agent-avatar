@@ -22,6 +22,10 @@ const JOIN = Symbol.for('awflow.avatar.element.join')
 const LEAVE = Symbol.for('awflow.avatar.element.leave')
 const GROUP = Symbol.for('awflow.avatar.element.group')
 const NOTIFY = Symbol.for('awflow.avatar.element.notify')
+const AIM = Symbol.for('awflow.avatar.element.aim')
+
+/* an avatar element whose gaze follows another's handle */
+type Watcher = { [AIM](): void }
 
 /* a property set before the element was defined shadows its accessor */
 function upgradeProperties(el: object, keys: string[]): void {
@@ -37,7 +41,7 @@ type Joinable = {
   [HANDLE]: AvatarHandle | null
   [JOIN](): void
   [LEAVE](): void
-  [NOTIFY]: Set<{ aim(): void }>
+  [NOTIFY]: Set<Watcher>
 }
 type GroupHost = {
   [GROUP]: Group
@@ -83,15 +87,15 @@ export function createElements(): {
     private leaveGroup: (() => void) | null = null
     private lookTarget: AwfAvatarElement | AvatarHandle | Element | null = null
     private rendered = false
-    readonly [NOTIFY] = new Set<{ aim(): void }>()
+    readonly [NOTIFY] = new Set<Watcher>()
 
     constructor() {
       super()
       upgradeProperties(this, ['ring', 'gaze', 'reaction', 'reactKey'])
     }
 
-    /** Points the gaze at the current target; the target's handle is resolved now. */
-    aim(): void {
+    /* points the gaze at the current target, its handle resolved now */
+    [AIM](): void {
       const t = this.lookTarget
       this.mounted?.lookAt(
         (isAvatar(t) ? t[HANDLE] : t) as AvatarHandle | Element | null,
@@ -99,7 +103,7 @@ export function createElements(): {
     }
 
     private changed(): void {
-      for (const w of this[NOTIFY]) w.aim()
+      for (const w of this[NOTIFY]) w[AIM]()
     }
 
     get handle(): AvatarHandle | null {
@@ -118,10 +122,14 @@ export function createElements(): {
           : undefined
         if (p && !(p.key in this.opts)) this.opts[p.key] = p.value
       }
+      // follow the gaze target again, dropped on disconnect
+      if (isAvatar(this.lookTarget)) this.lookTarget[NOTIFY].add(this)
       this.mountNow()
     }
 
     disconnectedCallback(): void {
+      // a detached element must not be kept alive by its gaze target
+      if (isAvatar(this.lookTarget)) this.lookTarget[NOTIFY].delete(this)
       this[LEAVE]()
       this.mounted?.destroy()
       this.mounted = null
@@ -168,7 +176,7 @@ export function createElements(): {
       }
       this.mounted = mount(this, this.opts as MountOptions)
       this.rendered = true
-      this.aim()
+      this[AIM]()
       this[JOIN]()
       this.changed()
     }
@@ -203,7 +211,7 @@ export function createElements(): {
       if (!this.leaveGroup) return
       this.leaveGroup()
       this.leaveGroup = null
-      this.aim()
+      this[AIM]()
     }
 
     react(name: NonNullable<MountOptions['reaction']>): void {
@@ -221,9 +229,10 @@ export function createElements(): {
     lookAt(target: AwfAvatarElement | AvatarHandle | Element | null): void {
       if (isAvatar(this.lookTarget)) this.lookTarget[NOTIFY].delete(this)
       this.lookTarget = target
-      // follow the target's handle as it mounts, moves and remounts
-      if (isAvatar(target)) target[NOTIFY].add(this)
-      this.aim()
+      // follow the target's handle as it mounts, moves and remounts; a
+      // detached element starts following when it connects
+      if (isAvatar(target) && this.isConnected) target[NOTIFY].add(this)
+      this[AIM]()
     }
 
     get ring(): MountOptions['ring'] {

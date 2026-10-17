@@ -1,3 +1,4 @@
+import { Live } from '@awflow/avatar/adapter'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineAvatarElements } from './define'
 import './index'
@@ -94,6 +95,11 @@ describe('mounting', () => {
     expect(el.handle).toBeTruthy()
     expect(el.handle).not.toBe(first)
     expect(el.querySelectorAll('svg')).toHaveLength(1)
+  })
+
+  it('keeps its public surface minimal: no aim method', () => {
+    const host = make('<awf-avatar name="Ada"></awf-avatar>')
+    expect('aim' in avatar(host)).toBe(false)
   })
 
   it('methods before connection are harmless', () => {
@@ -261,6 +267,32 @@ describe('group', () => {
   const spies = (host: HTMLElement) =>
     [0, 1, 2].map((i) => vi.spyOn(avatar(host, i).handle!, 'lookAt'))
 
+  it('A, B, C: B speaks, a missing speaker clears, B leaves while speaking', () => {
+    const error = vi.spyOn(console, 'error')
+    const host = make(
+      '<awf-avatar-group speaker="B">' +
+        '<awf-avatar name="A"></awf-avatar>' +
+        '<awf-avatar name="B"></awf-avatar>' +
+        '<awf-avatar name="C"></awf-avatar>' +
+        '</awf-avatar-group>',
+    )
+    const gr = host.querySelector('awf-avatar-group')!
+    const [a, b, c] = [avatar(host, 0), avatar(host, 1), avatar(host, 2)]
+    const B = b.handle
+    // spies set after load miss the first aim: re-apply the speaker
+    const [la, lb, lc] = [a, b, c].map((e) => vi.spyOn(e.handle!, 'lookAt'))
+    gr.setAttribute('speaker', 'Z')
+    for (const l of [la, lb, lc]) expect(l).toHaveBeenLastCalledWith(null)
+    gr.setAttribute('speaker', 'B')
+    expect(la).toHaveBeenLastCalledWith(B)
+    expect(lc).toHaveBeenLastCalledWith(B)
+    expect(lb).toHaveBeenLastCalledWith(null)
+    b.remove()
+    expect(la).toHaveBeenLastCalledWith(null)
+    expect(lc).toHaveBeenLastCalledWith(null)
+    expect(error).not.toHaveBeenCalled()
+  })
+
   it('aims the others at the speaker and the speaker ahead', () => {
     const host = group()
     const [a, l, s] = spies(host)
@@ -350,6 +382,17 @@ describe('upgrade and fallbacks', () => {
     defineAvatarElements('qq')
     expect(Object.hasOwn(early, 'ring')).toBe(false)
     expect(early.ring).toEqual({ color: '#123456' })
+    expect(Object.hasOwn(early, 'gaze')).toBe(false)
+    expect(early.gaze).toEqual([0.5, 0])
+    // the gaze reached the drawing: it matches an attribute-set gaze
+    const ref = document.createElement('awf-avatar')
+    ref.setAttribute('name', 'Ada')
+    ref.setAttribute('gaze', '0.5,0')
+    ref.setAttribute('ring', '{"color":"#123456"}')
+    document.body.appendChild(ref)
+    expect(early.querySelector('svg')!.outerHTML).toBe(
+      ref.querySelector('svg')!.outerHTML,
+    )
     expect(early.getAttribute('ring')).toBeNull()
     expect(early.querySelector('svg')).toBeTruthy()
     expect(g.getAttribute('speaker')).toBe('Ada')
@@ -393,18 +436,50 @@ describe('lookAt follows its target', () => {
     expect(look).toHaveBeenLastCalledWith(null)
   })
 
-  it('a target that is renamed', () => {
+  it('a target that is renamed is re-resolved without a new lookAt', () => {
+    const lookAt = vi.spyOn(Live.prototype, 'lookAt')
+    const host = make(
+      '<awf-avatar name="Ada" animate></awf-avatar><awf-avatar name="Linh" animate></awf-avatar>',
+    )
+    const a = avatar(host, 0)
+    const b = avatar(host, 1)
+    const liveOf = (e: El) => (e.handle as any).live as Live
+    const lastAim = (live: Live) => {
+      const i = lookAt.mock.contexts.lastIndexOf(live)
+      return i < 0 ? undefined : lookAt.mock.calls[i]![0]
+    }
+    a.lookAt(b)
+    const before = liveOf(b)
+    expect(lastAim(liveOf(a))).toBe(before)
+    const own = vi.spyOn(a, 'lookAt')
+    b.setAttribute('name', 'Sam')
+    b.setAttribute('shape', 'cube')
+    // b rebuilt: a new Live, and a's Live follows it on its own
+    expect(liveOf(b)).not.toBe(before)
+    expect(lastAim(liveOf(a))).toBe(liveOf(b))
+    expect(own).not.toHaveBeenCalled()
+  })
+
+  it('a watcher that disconnects is released by its target, and rejoins', () => {
+    const NOTIFY = Symbol.for('awflow.avatar.element.notify')
     const host = make(
       '<awf-avatar name="Ada"></awf-avatar><awf-avatar name="Linh"></awf-avatar>',
     )
     const a = avatar(host, 0)
     const b = avatar(host, 1)
+    const watchers = (b as any)[NOTIFY] as Set<unknown>
     a.lookAt(b)
+    expect(watchers.has(a)).toBe(true)
+    a.remove()
+    expect(watchers.has(a)).toBe(false)
+    // a detached element that is pointed at b does not join yet
+    a.lookAt(b)
+    expect(watchers.has(a)).toBe(false)
+    host.appendChild(a)
+    expect(watchers.has(a)).toBe(true)
     const look = vi.spyOn(a.handle!, 'lookAt')
-    b.setAttribute('name', 'Sam')
-    b.setAttribute('shape', 'cube')
-    a.lookAt(b)
+    b.remove()
+    host.appendChild(b)
     expect(look).toHaveBeenLastCalledWith(b.handle)
-    expect(b.handle).toBeTruthy()
   })
 })
