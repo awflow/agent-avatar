@@ -39,10 +39,11 @@ describe('Live.setActivity', () => {
   })
 
   test('fx nodes come alive while thinking', () => {
-    const { live, svg } = mount('Linh')
+    const { live, rig } = mount('Linh')
+    // the fx pool only, so a random blink's lid strokes never count
     const visible = () =>
-      Array.from(svg.querySelectorAll('path')).filter(
-        (p) => p.getAttribute('opacity') !== '0',
+      [...(rig.prev as Map<string, Record<string, string>>)].filter(
+        ([k, a]) => k.startsWith('fx.') && a.opacity !== '0',
       ).length
     const before = visible()
     live.setActivity('thinking')

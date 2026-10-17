@@ -186,12 +186,15 @@ describe('Live.react', () => {
   })
 
   test('love pours hearts into the fx pool, then lets them go', () => {
-    const { live, svg } = mount('Linh')
+    const { live, rig } = mount('Linh')
+    // only the fx pool: counting every path let a random blink (its lid
+    // strokes show mid-blink) land on the last frame and flake the count
     const visible = () =>
-      Array.from(svg.querySelectorAll('path')).filter(
-        (p) => p.getAttribute('opacity') !== '0',
+      [...(rig.prev as Map<string, Record<string, string>>)].filter(
+        ([k, a]) => k.startsWith('fx.') && a.opacity !== '0',
       ).length
     const before = visible()
+    expect(before).toBe(0)
     live.react('love')
     for (let i = 0; i < 40; i++) live.step(1 / 60)
     expect(visible()).toBeGreaterThan(before)
