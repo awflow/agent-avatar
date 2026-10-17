@@ -39,6 +39,8 @@ export type WearCtx = {
   stroke: number
   id: string
   size: number
+  /** Where a held prop sits, set by draw() for the prop layer. */
+  propAt?: { x: number; y: number; k: number }
 }
 
 export type WearDraw = (ctx: WearCtx) => Node[]

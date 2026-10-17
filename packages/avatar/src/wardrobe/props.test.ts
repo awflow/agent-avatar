@@ -4,8 +4,9 @@ import { Live } from '../animate'
 import { draw, loopPhase, type Node } from '../draw'
 import { serialize, settle, toSvg } from '../svg'
 import { FACES, PROPS as PROP_LIST } from '../tables'
+import { bounds, mul, parseT } from '../test/bounds'
 import { fakeDom, motion } from '../test/dom'
-import { PROPS } from './props'
+import { HELD_PROPS } from './props'
 
 fakeDom()
 
@@ -25,6 +26,38 @@ const keys = (n: Node) => flat(n).map((c) => c.key)
 const find = (n: Node, key: string) => flat(n).find((c) => c.key === key)
 const propKeys = (n: Node) => keys(n).filter((k) => k.startsWith('wear.prop.'))
 
+type Box = { x0: number; y0: number; x1: number; y1: number }
+/** A node's box in frame space, through every transform above it. */
+function absBox(tree: Node, key: string): Box {
+  const walk = (n: Node, m: ReturnType<typeof parseT>): Box | undefined => {
+    if (n.key === key) {
+      // lids are clipped to the eye: the eye shows no further than its socket
+      const seen = (c: Node): Node => ({
+        ...c,
+        children: c.children.filter((k) => !k.key.endsWith('.lids')).map(seen),
+      })
+      const [x0, y0, x1, y1] = bounds(seen(n), m)
+      return { x0: x0!, y0: y0!, x1: x1!, y1: y1! }
+    }
+    const mm = mul(m, parseT(n.attrs.transform))
+    for (const c of n.children) {
+      const b = walk(c, mm)
+      if (b) return b
+    }
+    return undefined
+  }
+  const b = walk(tree, parseT(''))
+  if (!b) throw new Error(`no ${key}`)
+  return b
+}
+/** The body group's vertical offset at rest (peek framing). */
+const absTy = (tree: Node) =>
+  Number(
+    /^translate\([\d.-]+ ([\d.-]+)\)/.exec(
+      find(tree, 'av')!.attrs.transform!,
+    )![1],
+  )
+
 function held(o: Record<string, unknown>, live = false) {
   const { who, pose, opts } = settle('Ada', { size: 300, ...o }, live)
   return { who, pose, opts, tree: draw(who, pose, { ...opts, live }) }
@@ -32,11 +65,11 @@ function held(o: Record<string, unknown>, live = false) {
 
 describe('registry', () => {
   test('six props, one per listed name past none', () => {
-    expect(Object.keys(PROPS).sort()).toEqual([...NAMES].sort())
+    expect(Object.keys(HELD_PROPS).sort()).toEqual([...NAMES].sort())
     expect(PROP_LIST.filter((p) => p !== 'none').sort()).toEqual(
       [...NAMES].sort(),
     )
-    for (const k of NAMES) expect(typeof PROPS[k].draw).toBe('function')
+    for (const k of NAMES) expect(typeof HELD_PROPS[k].draw).toBe('function')
   })
 })
 
@@ -101,23 +134,84 @@ describe('the live tree', () => {
 })
 
 describe('placement', () => {
-  test('floats bottom-right in frame space, bobbing and rocking', () => {
-    const { who, pose, opts } = settle('Ada', {
-      prop: 'book',
-      size: 300,
-    } as any)
-    for (const t of [0, 0.9, 2.5]) {
-      const node = find(draw(who, { ...pose, t }, opts), 'wear.prop.book')!
-      const tt = t + loopPhase(who.key)
-      const m =
-        /^translate\(([\d.-]+) ([\d.-]+)\) rotate\(([\d.-]+)\) scale\(3\.4\)$/.exec(
-          node.attrs.transform!,
-        )!
-      expect(m).not.toBe(null)
-      expect(Number(m[1])).toBe(279)
-      expect(Number(m[2])).toBeCloseTo(265 + 4 * Math.sin(2.2 * tt + 1), 1)
-      expect(Number(m[3])).toBeCloseTo(-10 + 4 * Math.sin(1.4 * tt), 1)
+  test('beside the body, at or below the cheek line, bobbing and rocking', () => {
+    for (const shape of SHAPES) {
+      const { who, pose, opts } = settle('Ada', {
+        prop: 'book',
+        size: 300,
+        shape,
+      } as any)
+      const at = (t: number) => {
+        const node = find(draw(who, { ...pose, t }, opts), 'wear.prop.book')!
+        const m =
+          /^translate\(([\d.-]+) ([\d.-]+)\) rotate\(([\d.-]+)\) scale\(([\d.]+)\)$/.exec(
+            node.attrs.transform!,
+          )!
+        expect(m).not.toBe(null)
+        return m.slice(1).map(Number) as [number, number, number, number]
+      }
+      const bob = (t: number) =>
+        4 * Math.sin(2.2 * (t + loopPhase(who.key)) + 1)
+      const ref = at(0.9)
+      const y0 = ref[1] - bob(0.9)
+      for (const t of [0, 0.9, 2.5]) {
+        const [x, y, r, k] = at(t)
+        const tt = t + loopPhase(who.key)
+        // the spot holds; only the bob and the rock move
+        expect(x).toBe(ref[0])
+        expect(k).toBe(ref[3])
+        expect(y - bob(t)).toBeCloseTo(y0, 1)
+        expect(r).toBeCloseTo(-10 + 4 * Math.sin(1.4 * tt), 1)
+      }
+      const f = FACES[shape]
+      const { tree } = held({ prop: 'book', shape })
+      // the right half, at or below the cheek line (frame space)
+      expect(ref[0]).toBeGreaterThan(220)
+      // a face whose cheek line sits within a prop of the frame's bottom
+      // (the semicircle) holds it up beside the eyes instead
+      const cheek = f.cheeks[1][1] + absTy(tree)
+      if (cheek < 340 - 60) expect(y0).toBeGreaterThanOrEqual(cheek - 0.5)
+      expect(ref[3]).toBeGreaterThanOrEqual(3.4 * 0.5 - 0.01)
+      expect(ref[3]).toBeLessThanOrEqual(3.4)
     }
+  })
+
+  test('never covers the eyes, brows or mouth, and stays in the frame', () => {
+    const bad: string[] = []
+    const hit = (a: Box, b: Box) =>
+      a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+    for (const who0 of ['Ada', 'Linh', 'Zed Okafor'])
+      for (const shape of SHAPES)
+        for (const framing of ['peek', 'full'])
+          for (const expression of ['normal', 'surprised'])
+            for (const name of NAMES) {
+              const { who, pose, opts } = settle(who0, {
+                prop: name,
+                size: 300,
+                shape,
+                framing,
+                expression,
+                brows: 'arch',
+                activity: name === 'coffee' ? 'idle' : 'thinking',
+              } as any)
+              for (const t of [0, 0.9, 1.7, 3.3]) {
+                const tree = draw(who, { ...pose, t }, opts)
+                const p = absBox(tree, `wear.prop.${name}`)
+                for (const k of ['eye0', 'eye1', 'brow0', 'brow1', 'mouth']) {
+                  const fb = absBox(tree, k)
+                  if (hit(p, fb))
+                    bad.push(
+                      `${who0}: ${name} on ${shape} ${framing} ${expression} t=${t} covers ${k}: ${JSON.stringify(p)} vs ${JSON.stringify(fb)}`,
+                    )
+                }
+                // inside Peek's 340 frame
+                if (p.x0 < 0 || p.y0 < 0 || p.x1 > 340 || p.y1 > 340)
+                  bad.push(
+                    `${who0}: ${name} on ${shape} ${framing} ${expression} t=${t} leaves the frame: ${JSON.stringify(p)}`,
+                  )
+              }
+            }
+    expect(bad).toEqual([])
   })
 
   test('outside the body group, under the fx layer', () => {

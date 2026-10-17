@@ -1,17 +1,19 @@
 /*
- * Held props. A prop floats at the bottom-right in frame space, never in the
- * body group: it bobs and rocks on the wardrobe clock and may answer the
- * activity (the bulb lights while thinking or done, the coffee steams). Under
- * full framing it rides the framing transform with the fx, so it follows the
- * body. Each drawing is the mock's, in its 100-unit space, scaled ×3.4 about
- * the prop's centre.
+ * Held props. A prop floats beside the body's right edge in frame space,
+ * never in the body group (see propSpot): it bobs and rocks on the wardrobe
+ * clock and may answer the activity (the bulb lights while thinking or done,
+ * the coffee steams). Under full framing it rides the framing transform with
+ * the fx, so it follows the body. Each drawing is the mock's, in its
+ * 100-unit space, scaled ×3.4 about the prop's centre, less in a tight frame.
  *
  * Every node exists in every pose, so a live tree keeps its nodes: the bulb's
  * halo stays as an invisible node while unlit. Below 44px draw() leaves the
  * prop out entirely.
  */
 
+import { clamp, halfWidthAt } from '../geom'
 import { el, type Node } from '../node'
+import type { FaceGeom } from '../tables'
 import type { WearCtx, WearDraw } from './context'
 import { f2, inkOf, lineW } from './kit'
 
@@ -30,9 +32,74 @@ const COVER = '#4F86F7'
 const STEEL = '#B8B2A7'
 const STEEL_EDGE = '#5F5A52'
 
-/** The prop's centre in frame space: the mock's (82, 78) × 3.4. */
-export const PROP_AT = { x: 279, y: 265 } as const
+/** The mock's spot, (82, 78) × 3.4: the fallback when no spot is given. */
+export const PROP_AT = { x: 279, y: 265, k: 1 } as const
 const UNIT = 3.4
+/** Half the prop's extent at full size, frame units, its rock included. */
+const HALF = 15 * UNIT
+const BOB = 4
+// a prop may shrink this far to stay clear of the face in a tight frame
+const SHRINK = [1, 0.9, 0.8, 0.7, 0.6, 0.5] as const
+// room kept around the eyes, brows and mouth
+const PAD = 4
+
+/** Where a held prop sits: its centre and its scale (1 is the mock's). */
+export type PropSpot = { x: number; y: number; k: number }
+
+/**
+ * Where a held prop sits, in the space it is drawn in (frame space, or the
+ * full-framing group's space): beside the body's right edge at or below the
+ * cheek line, a little over the outline so it reads as held. When the frame
+ * is too tight (a wide body in peek framing) it slides down and in, then
+ * shrinks, so it never covers the eyes, the brows or the mouth and never
+ * leaves `box`. Depends only on the face, the persona's eye spread and the
+ * framing, so a live avatar's prop holds its spot frame to frame.
+ */
+export function propSpot(
+  sh: FaceGeom,
+  baseY: number,
+  spread: number,
+  box: readonly [number, number, number, number],
+  scale = 1,
+): PropSpot {
+  const [bx0, by0, bx1, by1] = box
+  // the eyes and brows (everything above the eye's lowest edge), then the
+  // mouth, in the same space; generous enough for a surprised face
+  const [ex, ey] = sh.eyes[1]
+  const eyeR =
+    170 +
+    Math.max(ex - 170 + spread + sh.rx * 1.25, ex - 170 + spread + sh.brow.hw) +
+    PAD
+  const eyeB = ey + baseY + sh.ry * 1.25 + PAD
+  const m = sh.mouth
+  const mouthR = m.x + m.w * 1.6 + PAD + 6
+  const mouthB = m.y + baseY + m.d * 2.5 + PAD + 6
+  const cheek = sh.cheeks[1][1]
+  const pad = 2 / scale
+  let last: PropSpot = { x: PROP_AT.x, y: PROP_AT.y, k: 1 }
+  for (const k of SHRINK) {
+    const h = HALF * k
+    const hy = h + BOB
+    const xMax = bx1 - h - pad
+    const yMax = by1 - hy - pad
+    // down from the cheek line first; up beside the eyes only when the
+    // face sits so low that nothing fits below it
+    for (let step = 0; step <= 32; step++) {
+      const ly = step <= 16 ? cheek + step * 8 : cheek - (step - 16) * 8
+      const y = Math.min(ly + baseY, yMax)
+      const edge = 170 + halfWidthAt(sh, Math.min(ly, sh.bottom))
+      const x = clamp(edge + h * 0.75, bx0 + h + pad, xMax)
+      last = { x, y, k }
+      if (y - hy < by0 + pad) continue
+      const left = x - h
+      const top = y - hy
+      const clearEyes = left >= eyeR || top >= eyeB
+      const clearMouth = left >= mouthR || top >= mouthB
+      if (clearEyes && clearMouth) return last
+    }
+  }
+  return last
+}
 
 const f3 = (v: number) => String(Math.round(v * 1000) / 1000)
 /** An ellipse as one path, as the mock draws it. */
@@ -59,14 +126,15 @@ function path(ctx: WearCtx, key: string, d: string, p: Paint): Node {
 function prop(name: string, parts: Part): WearDraw {
   return (ctx) => {
     const t = ctx.t
-    const bob = 4 * Math.sin(2.2 * t + 1)
+    const at = ctx.propAt ?? PROP_AT
+    const bob = BOB * Math.sin(2.2 * t + 1)
     const rot = -10 + 4 * Math.sin(1.4 * t)
     return [
       el(
         'g',
         `wear.prop.${name}`,
         {
-          transform: `translate(${PROP_AT.x} ${f2(PROP_AT.y + bob)}) rotate(${f2(rot)}) scale(${UNIT})`,
+          transform: `translate(${f2(at.x)} ${f2(at.y + bob)}) rotate(${f2(rot)}) scale(${f2(UNIT * at.k)})`,
         },
         parts(ctx, (p) => `wear.prop.${name}.${p}`),
       ),
@@ -198,7 +266,7 @@ export type PropName =
   | 'wrench'
 
 /** The held props by name. Plugins (Task 5) add theirs after these. */
-export const PROPS: Record<PropName, { draw: WearDraw }> = {
+export const HELD_PROPS: Record<PropName, { draw: WearDraw }> = {
   magnifier: { draw: magnifier },
   pencil: { draw: pencil },
   coffee: { draw: coffee },
