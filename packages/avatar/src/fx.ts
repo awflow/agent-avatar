@@ -37,8 +37,11 @@ export const FX_KINDS: readonly FxKind[] = [
   'confetti',
 ]
 
-/** How many fx nodes a tree carries: `fx.0` to `fx.23`. */
+/** How many fx nodes a tree carries from LOD tier 2: `fx.0` to `fx.23`. */
 export const FX_POOL = 24
+
+/** Below LOD tier 2 only the ask badge draws: 3 nodes, `fx.0` to `fx.2`. */
+export const FX_POOL_SMALL = 3
 
 export type FxShape = {
   d: string

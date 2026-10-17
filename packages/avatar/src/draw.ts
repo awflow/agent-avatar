@@ -10,7 +10,7 @@
  */
 
 import { ACTIVITIES, type Activity, activityLoop, blend } from './activity'
-import { FX_KINDS, FX_POOL, type FxKind, fxShapes } from './fx'
+import { FX_KINDS, FX_POOL, FX_POOL_SMALL, type FxKind, fxShapes } from './fx'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import {
   ACCESSORY_INK,
@@ -1488,8 +1488,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   )
 
   // The fx layer: the activity's overlays, then the reaction's, poured into
-  // a fixed pool of FX_POOL paths so a live tree keeps its nodes whatever is
-  // shown. Frame space, anchored on the body's offset but not its tilt or
+  // a fixed pool of paths (FX_POOL, or FX_POOL_SMALL below tier 2) so a live
+  // tree keeps its nodes whatever is shown. Frame space, anchored on the body's offset but not its tilt or
   // squash, so a bubble does not lean with the head. Below 44px only the ask
   // badge stays, grown to read.
   const top = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
@@ -1512,8 +1512,11 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     .flatMap((kind) =>
       fxShapes(kind, pose.t, pose.fxP, anchor, inkC, dark, tier < 2 ? 1.8 : 1),
     )
+  // the tier follows the size, which never changes on a live avatar, so the
+  // node set holds: below tier 2 three nodes are enough for the ask badge
+  const poolSize = tier >= 2 ? FX_POOL : FX_POOL_SMALL
   const pool: Node[] = []
-  for (let i = 0; i < FX_POOL; i++) {
+  for (let i = 0; i < poolSize; i++) {
     const s = shapes[i]
     pool.push(
       s

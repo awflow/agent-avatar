@@ -54,26 +54,47 @@ describe('fxShapes', () => {
 })
 
 describe('the fx pool', () => {
-  test('pool is stable: 24 fx nodes for every activity in a live tree', () => {
-    const want = Array.from({ length: 24 }, (_, i) => `fx.${i}`)
-    let first: string[] | null = null
-    for (const activity of ACTS)
-      for (const framing of ['peek', 'full'] as const)
-        for (const size of [20, 64, 200]) {
+  test('pool is stable: sized by the LOD tier, the same for every pose', () => {
+    const pool = (n: number) => Array.from({ length: n }, (_, i) => `fx.${i}`)
+    // below 44px only the ask badge draws: 3 nodes hold it
+    const want: Record<number, string[]> = {
+      16: pool(3),
+      32: pool(3),
+      96: pool(24),
+    }
+    for (const size of [16, 32, 96])
+      for (const framing of ['peek', 'full'] as const) {
+        let first: string[] | null = null
+        for (const activity of ACTS) {
           const { who, pose, opts } = settle(
             'Linh',
             { activity, framing, size },
             true,
           )
-          for (const t of [0, REST_T, 5.5]) {
-            const all = keys(draw(who, { ...pose, t }, opts))
-            expect(all.filter((k) => /^fx\.\d+$/.test(k))).toEqual(want)
-            if (framing === 'peek' && size === 64) {
+          for (const t of [0, REST_T, 5.5])
+            for (const fx of [null, 'confetti', 'hearts'] as const) {
+              const all = keys(draw(who, { ...pose, t, fx, fxP: 0.4 }, opts))
+              expect(all.filter((k) => /^fx\.\d+$/.test(k))).toEqual(
+                want[size]!,
+              )
               first ??= all
               expect(all).toEqual(first)
             }
-          }
         }
+      }
+    // lod off draws every fx at any size: the full pool
+    const { who, pose, opts } = settle('Linh', { size: 16, lod: false }, true)
+    expect(fxKeys(draw(who, pose, opts))).toEqual(pool(24))
+  })
+
+  test('the ask badge fits the small pool', () => {
+    for (const size of [16, 32]) {
+      const tree = treeOf('Linh', { activity: 'waiting', size }, true)
+      const shown = fxKeys(tree).filter(
+        (k) => find(tree, k)!.attrs.opacity !== '0',
+      )
+      expect(shown).toEqual(['fx.0', 'fx.1', 'fx.2'])
+    }
   })
 
   test('a static idle tree has no fx nodes', () => {
