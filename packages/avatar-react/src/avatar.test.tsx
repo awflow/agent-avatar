@@ -291,6 +291,27 @@ describe('client', () => {
     expect(react).toHaveBeenCalledWith('nod')
   })
 
+  test('a reactKey change with an identity change plays on the new handle', () => {
+    const react = vi.spyOn(Live.prototype, 'react')
+    const ref = createRef<AvatarRef>()
+    const view = show(
+      <Avatar ref={ref} name='Ada' animate reaction='nod' reactKey={0} />,
+    )
+    const before = ref.current!.getHandle()
+    view.render(
+      <Avatar ref={ref} name='Linh' animate reaction='nod' reactKey={1} />,
+    )
+    const after = ref.current!.getHandle()
+    expect(after).not.toBe(before)
+    expect(react).toHaveBeenCalledTimes(1)
+    expect(react.mock.contexts[0] === (after as any).live).toBe(true)
+    // an identity change alone plays nothing
+    view.render(
+      <Avatar ref={ref} name='Grace' animate reaction='nod' reactKey={1} />,
+    )
+    expect(react).toHaveBeenCalledTimes(1)
+  })
+
   test('the ref reaches the live rig', () => {
     const react = vi.spyOn(Live.prototype, 'react')
     const pulse = vi.spyOn(Live.prototype, 'pulse')
@@ -485,7 +506,15 @@ describe('AvatarGroup', () => {
     // the speaker leaves while speaking: the others look ahead again
     view.render(group('B'))
     expect(lastAim(lookAt, liveOf(a))).toBe(liveOf(b))
+    // the group itself clears the others' gaze (spied on the handles: the
+    // core's own reset when B's handle dies must not hide a regression)
+    const handleA = vi.spyOn(a.current!.getHandle()!, 'lookAt')
+    const handleC = vi.spyOn(c.current!.getHandle()!, 'lookAt')
     view.render(group('B', false))
+    expect(handleA).toHaveBeenCalledWith(null)
+    expect(handleC).toHaveBeenCalledWith(null)
+    expect(handleA.mock.lastCall![0]).toBe(null)
+    expect(handleC.mock.lastCall![0]).toBe(null)
     expect(b.current).toBe(null)
     expect(lastAim(lookAt, liveOf(a))).toBe(null)
     expect(lastAim(lookAt, liveOf(c))).toBe(null)

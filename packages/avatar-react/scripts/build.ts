@@ -15,10 +15,18 @@ const result = await Bun.build({
   target: 'browser',
   format: 'esm',
   packages: 'external',
+  // a client module for React Server Components frameworks
+  banner: "'use client';",
   define: { 'process.env.NODE_ENV': 'process.env.NODE_ENV' },
 })
 if (!result.success) {
   for (const log of result.logs) console.error(log)
+  process.exit(1)
+}
+
+const entry = await Bun.file(`${outdir}/index.js`).text()
+if (!/^['"]use client['"]/.test(entry)) {
+  console.error(`${outdir}/index.js does not start with 'use client'`)
   process.exit(1)
 }
 

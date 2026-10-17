@@ -155,7 +155,8 @@ type SvgProps = {
  * The effect can run again on the same svg (an <Activity> or a Suspense
  * boundary hides then shows it, StrictMode). By then the core may have
  * redrawn it for a later state, so attach() binds with that state, not the
- * snapshot's.
+ * snapshot's. A reactKey that changed together with the identity plays on
+ * the new handle.
  */
 const Svg = memo(function Svg({
   snap,
@@ -167,7 +168,14 @@ const Svg = memo(function Svg({
   const ref = useRef<SVGSVGElement>(null)
   useIsoLayoutEffect(() => {
     const a = applied.current
-    const o = a && a.gen === snap.gen ? { ...snap.o, ...a.state } : snap.o
+    // same svg again: the state it shows. A new identity: the reactKey the
+    // old handle last had, so a key that changed with it still plays once
+    // the state effect sends it
+    const o = !a
+      ? snap.o
+      : a.gen === snap.gen
+        ? { ...snap.o, ...a.state }
+        : { ...snap.o, reactKey: a.state.reactKey }
     const handle = attach(ref.current!, o)
     const release = adopt(handle, snap.o.name)
     return () => {
