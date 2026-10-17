@@ -98,17 +98,77 @@ describe('registerPlugins', () => {
     expect(plugins()).toEqual([])
   })
 
-  test('the same object twice is a no-op; another object with the name throws', () => {
+  test('the same object twice is a no-op; another kind with the name throws', () => {
     registerPlugins([catEars, catEars])
     registerPlugins([catEars])
     expect(plugins()).toEqual([catEars])
-    const twin = defineAccessory({ ...catEars })
-    expect(() => registerPlugins([twin])).toThrow(/"cat-ears" is taken/)
     // names are one namespace across kinds: node keys are plugin.<name>
     expect(() =>
       registerPlugins([defineProp({ name: 'cat-ears', draw: () => [] })]),
-    ).toThrow(/"cat-ears" is taken/)
+    ).toThrow('"cat-ears" is taken by another plugin')
+    // the same name in another slot is another kind of thing too
+    expect(() =>
+      registerPlugins([defineAccessory({ ...catEars, slot: 'eyewear' })]),
+    ).toThrow('"cat-ears" is taken by another plugin')
     expect(plugins()).toEqual([catEars])
+  })
+
+  test('HMR: a fresh object with the same kind and name replaces it, warned once', () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const kite = defineProp({ name: 'kite', draw: () => [] })
+      registerPlugins([catEars, kite])
+      const dot = (fill: string) =>
+        defineAccessory({
+          slot: 'headwear',
+          name: 'cat-ears',
+          draw: () => [el('circle', 'dot', { cx: 170, cy: 20, r: 9, fill })],
+        })
+      const v2 = dot('#00aa00')
+      registerPlugins([v2])
+      // last wins, in place: the order of plugins() holds
+      expect(plugins()).toEqual([v2, kite])
+      expect(toSvg('Linh', { headwear: 'cat-ears', size: 300 })).toContain(
+        'fill="#00aa00"',
+      )
+      const v3 = dot('#0000aa')
+      registerPlugins([v3])
+      expect(plugins()).toEqual([v3, kite])
+      expect(toSvg('Linh', { headwear: 'cat-ears', size: 300 })).toContain(
+        'fill="#0000aa"',
+      )
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0]![0])).toContain('cat-ears')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  test('HMR: a theme re-registered from a fresh object replaces it, listed once', () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const a = { ...THEMES.clay, name: 'hot', frame: '#111111' }
+      registerPlugins([{ kind: 'theme', theme: a }])
+      registerPlugins([{ kind: 'theme', theme: a }])
+      expect(plugins()).toHaveLength(1)
+      const b = { ...THEMES.clay, name: 'hot', frame: '#222222' }
+      registerPlugins([{ kind: 'theme', theme: b }])
+      expect(themeOf('hot').frame).toBe('#222222')
+      expect(plugins()).toHaveLength(1)
+      // defineTheme follows the same rule
+      defineTheme({ ...THEMES.clay, name: 'hot', frame: '#333333' })
+      expect(themeOf('hot').frame).toBe('#333333')
+      // a later, unrelated registration leaves the newest theme in place
+      registerPlugins([defineProp({ name: 'kite', draw: () => [] })])
+      expect(themeOf('hot').frame).toBe('#333333')
+      expect(warn).toHaveBeenCalledTimes(1)
+      // built-ins still throw with the exact message
+      expect(() => defineTheme({ ...THEMES.soft, name: 'bold' })).toThrow(
+        '"bold" is a built-in theme and cannot be replaced',
+      )
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   test('a failing list registers nothing', () => {

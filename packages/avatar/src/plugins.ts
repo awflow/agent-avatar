@@ -3,7 +3,8 @@
  * caller adds at runtime. A plugin is reachable only through an explicit
  * override (`headwear: 'cat-ears'`, `shape: 'squircle'`, `fx: 'my-fx'`):
  * it never joins the hashed lists, so a name keeps its face whatever is
- * registered. Built-in names cannot be replaced.
+ * registered. Built-in names cannot be replaced; a custom name registered
+ * again from a fresh object of the same kind replaces the old one (HMR).
  *
  * Every plugin drawing lands in one keyed group, `plugin.<name>`, with its
  * own nodes under `plugin.<name>.*`. A draw that throws or yields non-finite
@@ -18,14 +19,9 @@ import { seat } from './geom'
 import { LISTS } from './identity'
 import { el, type Node } from './node'
 import type { SwingSpec } from './physics'
-import { registry } from './registry'
+import { note, registry } from './registry'
 import { FACES, type FaceGeom, PROPS } from './tables'
-import {
-  registerTheme,
-  resetThemesForTests,
-  type Theme,
-  type ThemePlugin,
-} from './themes'
+import { registerTheme, resetThemesForTests, type ThemePlugin } from './themes'
 import type { WearCtx, WearDraw, WearSlot } from './wardrobe/context'
 
 export type { ThemePlugin } from './themes'
@@ -175,31 +171,45 @@ function builtIn(p: Exclude<Plugin, ThemePlugin>): string | null {
 
 const KINDS = new Set(['accessory', 'prop', 'fx', 'shape', 'theme'])
 
+// the same kind of thing under the same name: a re-registration, not a clash
+const sameKind = (a: Plugin, b: Plugin) =>
+  a.kind === b.kind &&
+  (a.kind !== 'accessory' || a.slot === (b as AccessoryPlugin).slot)
+
 /**
- * Registers plugins. Safe to call more than once: the same object again is a
- * no-op, another object under a taken name throws, and a list that throws
- * registers nothing.
+ * Registers plugins. Register the same plugins on the server and on the
+ * client, before the first render: an override naming a plugin the server
+ * never registered renders what the name picked there, and the client's
+ * first live paint would not match.
+ *
+ * Safe to call more than once: the same object again is a no-op; a fresh
+ * object of the same kind (and slot) under a taken name replaces the old one
+ * in place, last wins, with one warning in development, so a module that
+ * re-runs under HMR keeps working. A clash with another kind, slot or a
+ * built-in throws, and a list that throws registers nothing.
  */
 export function registerPlugins(items: Plugin[]): void {
   if (!Array.isArray(items)) throw new Error('registerPlugins takes an array')
   const reg = registry()
   const staged = new Map(reg.names)
-  const themes = new Map<string, Theme>()
-  const add: Plugin[] = []
+  const next = [...reg.list]
+  const replaced: string[] = []
+  const themes: ThemePlugin[] = []
+  const themeAt = (name: string) =>
+    next.findIndex((q) => q.kind === 'theme' && q.theme.name === name)
   for (const p of items) {
-    if (reg.list.includes(p) || add.includes(p)) continue
+    if (next.includes(p)) continue
     if (!p || !KINDS.has(p.kind))
       throw new Error(
         'a plugin needs a kind: accessory, prop, fx, shape or theme',
       )
     if (p.kind === 'theme') {
-      const t = p.theme
-      const other = typeof t?.name === 'string' ? themes.get(t.name) : undefined
-      if (other && other !== t)
-        throw new Error(`theme "${t.name}" is taken by another theme`)
-      registerTheme(t, true)
-      themes.set(t.name, t)
-      add.push(p)
+      registerTheme(p.theme, true)
+      // one entry per theme name: a re-registration takes the old one's place
+      const i = themeAt(p.theme.name)
+      if (i >= 0) next[i] = p
+      else next.push(p)
+      themes.push(p)
       continue
     }
     // re-check what define*() checked: a plugin may be a plain object
@@ -217,16 +227,25 @@ export function registerPlugins(items: Plugin[]): void {
         `"${p.name}" is a built-in ${kind} and cannot be replaced`,
       )
     const had = staged.get(p.name)
-    if (had && had !== p)
+    if (had && !sameKind(had, p))
       throw new Error(`"${p.name}" is taken by another plugin`)
     staged.set(p.name, p)
-    add.push(p)
+    if (had) {
+      next[next.indexOf(had)] = p
+      replaced.push(p.name)
+    } else next.push(p)
   }
-  for (const p of add) if (p.kind === 'theme') registerTheme(p.theme)
+  // nothing above registered anything: a list that throws leaves no trace
+  for (const p of themes) registerTheme(p.theme)
   reg.names.clear()
   for (const [k, v] of staged) reg.names.set(k, v)
-  reg.list = [...reg.list, ...add]
-  reg.frozen = Object.freeze([...reg.list])
+  reg.list = next
+  reg.frozen = Object.freeze([...next])
+  for (const name of replaced)
+    note(
+      `plugin:${name}`,
+      `plugin "${name}" was registered again from a new object; the last registration wins`,
+    )
 }
 
 /** Every registered plugin, in registration order. Read-only. */

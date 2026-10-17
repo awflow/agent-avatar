@@ -5,7 +5,7 @@
  * output without a theme stays byte-identical to peek@1.
  */
 
-import { registry } from './registry'
+import { note, registry } from './registry'
 import { COLORS, type Color, INK } from './tables'
 
 export type Ink = { body: string; deep: string }
@@ -219,8 +219,9 @@ function normalise(t: Theme): Theme {
 
 /**
  * Registers a custom theme and returns the registered copy. Built-in names
- * are refused; the same input twice is a no-op; another theme with a taken
- * name throws. `check` validates without registering.
+ * are refused; the same input twice is a no-op; another theme under a taken
+ * name replaces it, last wins, with one warning in development (HMR re-runs
+ * a module with fresh objects). `check` validates without registering.
  */
 export function registerTheme(t: Theme, check = false): Theme {
   const name = t?.name
@@ -228,11 +229,15 @@ export function registerTheme(t: Theme, check = false): Theme {
     throw new Error(`"${name}" is a built-in theme and cannot be replaced`)
   const had = typeof name === 'string' ? custom().get(name) : undefined
   if (had && (sources().get(name) === t || had === t)) return had
-  if (had) throw new Error(`theme "${name}" is taken by another theme`)
   const out = normalise(t)
   if (!check) {
     custom().set(name, out)
     sources().set(name, t)
+    if (had)
+      note(
+        `theme:${name}`,
+        `theme "${name}" was registered again from a new object; the last registration wins`,
+      )
   }
   return out
 }
@@ -240,7 +245,8 @@ export function registerTheme(t: Theme, check = false): Theme {
 /**
  * Registers a theme by name and returns it, usable both as a Theme and as a
  * ThemePlugin for registerPlugins(). Built-in names (soft, bold, mono, neon,
- * clay) cannot be replaced; colours are normalised to lowercase #rrggbb.
+ * clay) cannot be replaced; a custom name defined again from a new object is
+ * replaced (last wins); colours are normalised to lowercase #rrggbb.
  */
 export function defineTheme(t: Theme): Theme & ThemePlugin {
   const out = registerTheme(t) as Theme & Partial<ThemePlugin>
