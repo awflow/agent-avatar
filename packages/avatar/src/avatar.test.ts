@@ -16,6 +16,7 @@ import {
   FACES,
   type Face,
   PARTS,
+  PROPS,
 } from './tables'
 
 const NAMES = [
@@ -307,9 +308,18 @@ test('different avatars never share ids', () => {
   )
 })
 
-test('every face x part x expression draws clean', () => {
-  const bad = /NaN|undefined|Infinity/
-  for (const face of Object.keys(FACES) as (keyof typeof FACES)[])
+// one test per face: each stays well inside its timeout, and a failure names
+// the face. The live tree's JSON is a superset of what toSvg serialises, so
+// toSvg runs once per face for the string path.
+const HEAVY = 30_000
+
+test.each(Object.keys(FACES) as Face[])(
+  'every part x expression draws clean on %s',
+  (face) => {
+    const bad = /NaN|undefined|Infinity/
+    expect(bad.test(toSvg('Ada', { shape: face, riso: true, size: 300 }))).toBe(
+      false,
+    )
     for (const part of Object.keys(PARTS) as (keyof typeof PARTS)[])
       for (const type of PARTS[part])
         for (const expression of Object.keys(EXPRESSIONS) as Expression[]) {
@@ -320,11 +330,14 @@ test('every face x part x expression draws clean', () => {
             riso: true,
             size: 300,
           }
-          const svg = toSvg('Ada', o)
-          expect(bad.test(svg)).toBe(false)
           const { who, pose, opts } = settle('Ada', o, true)
           expect(bad.test(JSON.stringify(draw(who, pose, opts)))).toBe(false)
         }
+  },
+  HEAVY,
+)
+
+test('the palette keeps its 12 slots', () => {
   expect(Object.keys(COLORS).length).toBe(12)
 })
 
@@ -411,38 +424,67 @@ describe('accessories', () => {
     )
   })
 
-  test('every wardrobe combination fits a finite, stable live tree on every face and trait', () => {
-    const keys = (node: Node): string[] => [
-      node.key,
-      ...node.children.flatMap(keys),
-    ]
-    // Peek's own lists: the peek@2 additions draw nothing yet (Plan 3)
-    for (const face of Object.keys(FACES).slice(0, 4) as Face[]) {
-      for (const trait of PARTS.trait.slice(0, 5)) {
-        for (const eyewear of ACCESSORIES.eyewear.slice(0, 3)) {
-          for (const headwear of ACCESSORIES.headwear.slice(0, 4)) {
-            for (const neckwear of ACCESSORIES.neckwear.slice(0, 2)) {
-              const { who, opts } = settle(
-                'Linh',
-                { shape: face, trait, eyewear, headwear, neckwear, version: 1 },
-                true,
-              )
-              const reference = keys(draw(who, restPose(who, 'normal'), opts))
-              for (const expression of Object.keys(
-                EXPRESSIONS,
-              ) as Expression[]) {
-                const tree = draw(who, restPose(who, expression, [-1, 1]), opts)
-                expect(keys(tree)).toEqual(reference)
-                expect(
-                  /NaN|Infinity|undefined/.test(JSON.stringify(tree)),
-                ).toBe(false)
-              }
-            }
-          }
-        }
-      }
+  const treeKeys = (node: Node): string[] => [
+    node.key,
+    ...node.children.flatMap(treeKeys),
+  ]
+  const stableAcrossExpressions = (o: object) => {
+    const { who, opts } = settle('Linh', o, true)
+    const reference = treeKeys(draw(who, restPose(who, 'normal'), opts))
+    for (const expression of Object.keys(EXPRESSIONS) as Expression[]) {
+      const tree = draw(who, restPose(who, expression, [-1, 1]), opts)
+      expect(treeKeys(tree)).toEqual(reference)
+      expect(/NaN|Infinity|undefined/.test(JSON.stringify(tree))).toBe(false)
     }
-  })
+  }
+
+  // Peek's own items crossed with each other under peek@1
+  test.each(Object.keys(FACES).slice(0, 4) as Face[])(
+    "every combination of Peek's wardrobe fits a finite, stable live tree on %s",
+    (face) => {
+      for (const trait of PARTS.trait.slice(0, 5))
+        for (const eyewear of ACCESSORIES.eyewear.slice(0, 3))
+          for (const headwear of ACCESSORIES.headwear.slice(0, 4))
+            for (const neckwear of ACCESSORIES.neckwear.slice(0, 2))
+              stableAcrossExpressions({
+                shape: face,
+                trait,
+                eyewear,
+                headwear,
+                neckwear,
+                version: 1,
+              })
+    },
+    HEAVY,
+  )
+
+  // every peek@2 item (wardrobe, decor and props) on every face, each worn
+  // with companions from the other slots that rotate through their lists
+  test.each(Object.keys(FACES) as Face[])(
+    'every peek@2 wardrobe item and prop fits a finite, stable live tree on %s',
+    (face) => {
+      const pick = <T>(list: readonly T[], i: number) => list[i % list.length]!
+      const slots = [
+        ...(['eyewear', 'headwear', 'neckwear', 'decor'] as const),
+        'prop' as const,
+      ]
+      const lists = { ...ACCESSORIES, prop: PROPS }
+      let i = 0
+      for (const slot of slots)
+        for (const item of lists[slot]) {
+          i++
+          const o: Record<string, unknown> = {
+            shape: face,
+            trait: pick(PARTS.trait, i),
+            size: 300,
+          }
+          for (const other of slots) o[other] = pick(lists[other], i * 3 + 1)
+          o[slot] = item
+          stableAcrossExpressions(o)
+        }
+    },
+    HEAVY,
+  )
 
   test('accessories are deterministic with frames, riso, gaze and React SSR', () => {
     for (const frame of ['ink', 'bone', 'paper', 'none'] as const) {
