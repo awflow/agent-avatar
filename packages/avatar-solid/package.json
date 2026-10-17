@@ -5,6 +5,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "awflow-src": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "solid": "./src/index.ts",
       "worker": "./dist/server.js",

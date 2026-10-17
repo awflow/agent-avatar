@@ -23,6 +23,11 @@ const svelteSsr = {
   },
 }
 
+// The workspace runs against src through the private `awflow-src` export
+// condition (never `development`, which consumers' dev servers set). Vite's
+// default conditions follow it; the client project keeps only browser.
+const server = ['awflow-src', 'module', 'node', 'development|production']
+
 // Two projects: the SSR one renders through svelte/server; the client one
 // compiles components for the browser and mounts them in jsdom. Client tests
 // are `*.test.svelte.ts` so they can hold $state props.
@@ -31,6 +36,9 @@ export default defineConfig({
     projects: [
       {
         plugins: [svelteSsr],
+        // svelte's server build: no browser condition here
+        resolve: { conditions: server },
+        ssr: { resolve: { conditions: server } },
         test: {
           name: 'ssr',
           environment: 'jsdom',
@@ -39,7 +47,8 @@ export default defineConfig({
       },
       {
         plugins: [svelte({ compilerOptions: { dev: false } })],
-        resolve: { conditions: ['browser'] },
+        resolve: { conditions: ['awflow-src', 'browser'] },
+        ssr: { resolve: { conditions: server } },
         test: {
           name: 'client',
           environment: 'jsdom',

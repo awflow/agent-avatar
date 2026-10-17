@@ -4,35 +4,37 @@
   "type": "module",
   "exports": {
     ".": {
-      "development": "./src/index.ts",
+      "awflow-src": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
     "./adapter": {
-      "development": "./src/adapter.ts",
+      "awflow-src": "./src/adapter.ts",
       "types": "./dist/adapter.d.ts",
       "import": "./dist/adapter.js",
       "default": "./dist/adapter.js"
     },
     "./svg": {
+      "awflow-src": "./src/svg.ts",
       "types": "./dist/svg.d.ts",
       "import": "./dist/svg.js",
       "default": "./dist/svg.js"
     },
     "./compat": {
-      "development": "./src/compat.ts",
+      "awflow-src": "./src/compat.ts",
       "types": "./dist/compat.d.ts",
       "import": "./dist/compat.js",
       "default": "./dist/compat.js"
     },
     "./ai": {
-      "development": "./src/ai.ts",
+      "awflow-src": "./src/ai.ts",
       "types": "./dist/ai.d.ts",
       "import": "./dist/ai.js",
       "default": "./dist/ai.js"
     },
     "./identity": {
+      "awflow-src": "./src/identity.ts",
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js",
       "default": "./dist/identity.js"
