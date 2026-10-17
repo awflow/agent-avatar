@@ -148,7 +148,7 @@ const antenna = hat('antenna', {
   bw: 14,
   parts: ({ ctx, key, line, w, ink, angle }) => {
     const working = ctx.pose.activity === 'working'
-    const lit = working && Math.sin(10 * ctx.pose.t) > 0
+    const lit = working && Math.sin(10 * ctx.t) > 0
     return [
       el('g', key('stalk'), { transform: `rotate(${f2(angle)} 0 -8)` }, [
         // a body-coloured halo keeps the ink stalk off an ink ground
@@ -380,7 +380,7 @@ const halo: WearDraw = (ctx) => {
   const sh = ctx.sh
   const s = hatScale(sh)
   const top = crownTop(sh)
-  const bob = 1.2 * Math.sin(2 * ctx.pose.t)
+  const bob = 1.2 * Math.sin(2 * ctx.t)
   const ink = inkOf(ctx)
   const w = (px: number) => f2(lineW(ctx, px) / s)
   const key = (p: string) => `wear.headwear.halo.${p}`
@@ -444,7 +444,7 @@ const headphones: WearDraw = (ctx) => {
   const xr = 170 + half
   const band = `M${f2(xl)} ${f2(y0)}C${f2(xl)} ${f2(c)} ${f2(xr)} ${f2(c)} ${f2(xr)} ${f2(y0)}`
   const listening = ctx.pose.activity === 'listening'
-  const glow = listening ? 0.6 + 0.4 * Math.sin(6 * ctx.pose.t) : 0
+  const glow = listening ? 0.6 + 0.4 * Math.sin(6 * ctx.t) : 0
   const key = (p: string) => `wear.headwear.headphones.${p}`
   const cup = (i: number, x: number) => {
     const shape = {

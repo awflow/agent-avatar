@@ -25,7 +25,7 @@ import {
   INK,
 } from './tables'
 import { type Ink, THEMES, type Theme } from './themes'
-import { WEAR, type WearCtx } from './wardrobe/context'
+import { WEAR, type WearCtx, type WearSlot } from './wardrobe/context'
 
 export { clamp, depth, seat, smooth } from './geom'
 
@@ -646,7 +646,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // it leans whole toward its gaze, and its lids cut it the same way.
   const solid =
     who.eyes === 'pill' || who.eyes === 'dot' || who.eyes === 'spark'
-  const eyes = sh.eyes.map(([ex, ey], i) => {
+  // the visor stands in for the eyes: it glows where they would look
+  const eyes = (who.eyewear === 'visor' ? [] : sh.eyes).map(([ex, ey], i) => {
     const side = i === 0 ? -1 : 1
     const kk = `eye${i}`
     let lid = clamp(lid0 + (i === 0 ? lidAsym : -lidAsym * 0.3), 0, 1)
@@ -1147,6 +1148,25 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
   }
+  // everything past Peek's own items: one drawing per slot from the
+  // registry, painted after that slot's Peek item
+  const ctx: WearCtx = {
+    sh,
+    who,
+    pose,
+    t: pose.t + loopPhase(who.key),
+    theme: T,
+    ink: slot,
+    g,
+    bodyTransform,
+    stroke: st,
+    id,
+    size: o.size,
+  }
+  const wear = (kind: WearSlot, name: string) => {
+    const item = Object.hasOwn(WEAR[kind], name) ? WEAR[kind][name] : undefined
+    if (item) wardrobe.push(...item.draw(ctx))
+  }
   if (who.eyewear === 'glasses' || who.eyewear === 'sunglasses') {
     const lx = sh.eyes[0][0] - spread
     const rr = sh.eyes[1][0] + spread
@@ -1221,6 +1241,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     }
     wardrobe.push(n('g', 'eyewear', {}, frames))
   }
+  wear('eyewear', who.eyewear)
   if (
     who.headwear === 'bow' ||
     who.headwear === 'cap' ||
@@ -1329,23 +1350,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       ),
     )
   }
-  // everything past Peek's own items: one drawing per slot from the registry
-  const worn = WEAR.headwear[who.headwear]
-  if (worn) {
-    const ctx: WearCtx = {
-      sh,
-      who,
-      pose,
-      theme: T,
-      ink: slot,
-      g,
-      bodyTransform,
-      stroke: st,
-      id,
-      size: o.size,
-    }
-    wardrobe.push(...worn.draw(ctx))
-  }
+  wear('headwear', who.headwear)
   if (who.neckwear === 'tie') {
     // The knot follows the mouth's lowest edge, including its skew. The
     // floor clips the blade, just as it clips the creature itself.
@@ -1370,6 +1375,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       ),
     )
   }
+  wear('neckwear', who.neckwear)
 
   // the plates sit a hair out of register at large sizes
   const off = (dx: number, dy: number) =>

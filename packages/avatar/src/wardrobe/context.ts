@@ -14,12 +14,19 @@ import type { Node } from '../node'
 import type { SwingSpec } from '../physics'
 import type { Channel, FaceGeom } from '../tables'
 import type { Ink, Theme } from '../themes'
+import { EYEWEAR } from './eyewear'
 import { HEADWEAR } from './headwear'
 
 export type WearCtx = {
   sh: FaceGeom
   who: Drawable
   pose: Pose
+  /**
+   * The wardrobe clock, seconds: `pose.t` shifted by the avatar's loop phase,
+   * so wardrobe on a page does not bob, blink or glow in step. The server
+   * frame and the first live paint share it.
+   */
+  t: number
   theme: Theme
   ink: Ink
   /** A persona-adjusted channel (Peek's g()). */
@@ -41,7 +48,7 @@ export type WearSlot = 'headwear' | 'eyewear' | 'neckwear' | 'decor'
 
 export const WEAR: Record<WearSlot, Record<string, Wearable>> = {
   headwear: { ...HEADWEAR },
-  eyewear: {},
+  eyewear: { ...EYEWEAR },
   neckwear: {},
   decor: {},
 }

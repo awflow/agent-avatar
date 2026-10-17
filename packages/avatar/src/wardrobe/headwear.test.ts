@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { draw, type Node, type Pose, restPose } from '../draw'
+import { draw, loopPhase, type Node, type Pose, restPose } from '../draw'
 import { fnv1a } from '../identity'
 import { settle, toSvg } from '../svg'
 import { ACCESSORIES, EXPRESSIONS, type Expression, FACES } from '../tables'
@@ -210,8 +210,12 @@ describe('new headwear', () => {
       expect(bottom!).toBeLessThan(crownTop(face) - 2)
     }
     const { who, pose, opts } = settle('Ada', { headwear: 'halo' })
+    // on the wardrobe clock: pose.t plus the avatar's loop phase
+    const ph = loopPhase(who.key)
     const y = (t: number) =>
-      bounds(find(draw(who, { ...pose, t }, opts), 'wear.headwear.halo')!)[1]!
+      bounds(
+        find(draw(who, { ...pose, t: t - ph }, opts), 'wear.headwear.halo')!,
+      )[1]!
     expect(y(Math.PI / 4) - y((3 * Math.PI) / 4)).toBeCloseTo(2.4, 1)
   })
 
@@ -238,7 +242,11 @@ describe('new headwear', () => {
         headwear: 'headphones',
         activity,
       })
-      const tree = draw(who, { ...pose, t }, { ...opts, live: true })
+      const tree = draw(
+        who,
+        { ...pose, t: t - loopPhase(who.key) },
+        { ...opts, live: true },
+      )
       return find(tree, 'wear.headwear.headphones.cup0.glow')!.attrs
     }
     const on = glow('listening', Math.PI / 12)
@@ -264,7 +272,11 @@ describe('new headwear', () => {
         activity,
       })
       return find(
-        draw(who, { ...pose, t }, { ...opts, live: true }),
+        draw(
+          who,
+          { ...pose, t: t - loopPhase(who.key) },
+          { ...opts, live: true },
+        ),
         'wear.headwear.antenna.ball',
       )!.attrs.fill
     }
