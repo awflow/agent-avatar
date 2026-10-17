@@ -173,6 +173,12 @@ export const COLORS = {
   butter: { body: '#ECE2B9', deep: '#D9C284' },
   rose: { body: '#EFCAD7', deep: '#DFA4BA' },
   aqua: { body: '#BDE1E5', deep: '#8FC7D1' },
+  // appended for @awflow/avatar; peek@1 never picks past aqua (VERSIONS)
+  peach: { body: '#F6D3B8', deep: '#E8B08A' },
+  sky: { body: '#C9E2F5', deep: '#9EC6E8' },
+  sage: { body: '#DCE5C8', deep: '#B9CA98' },
+  sand: { body: '#E8DCCB', deep: '#CDB99C' },
+  plum: { body: '#E2CFE6', deep: '#C7A7CF' },
 } as const
 
 /** Discrete anatomy. Each part reads every channel its feature owns. */

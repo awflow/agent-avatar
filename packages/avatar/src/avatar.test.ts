@@ -314,7 +314,7 @@ test('every face x part x expression draws clean', () => {
           const { who, pose, opts } = settle('Ada', o, true)
           expect(bad.test(JSON.stringify(draw(who, pose, opts)))).toBe(false)
         }
-  expect(Object.keys(COLORS).length).toBe(7)
+  expect(Object.keys(COLORS).length).toBe(12)
 })
 
 test('brows never leave the face, even raised on the widest persona', () => {

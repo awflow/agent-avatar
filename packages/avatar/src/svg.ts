@@ -13,9 +13,20 @@ import {
   restPose,
 } from './draw'
 import { type Axes, fnv1a, type Identity, identify } from './identity'
-import { ACCESSORIES, type AccessorySlot, type Expression } from './tables'
+import {
+  ACCESSORIES,
+  type AccessorySlot,
+  COLORS,
+  type Color,
+  type Expression,
+} from './tables'
+import { deepOf, type Ink, parseHex, themeOf } from './themes'
 
-export type AvatarOptions = Partial<Axes> & {
+export type AvatarOptions = Omit<Partial<Axes>, 'color'> & {
+  /** A palette slot, or any #rgb / #rrggbb hex for a custom body ink. */
+  color?: Color | `#${string}`
+  /** A registered theme name. Default soft (peek's palette). */
+  theme?: string
   /** px. Drives the stroke ramp (thicker below 96) and the riso print. */
   size?: number
   expression?: Expression
@@ -55,10 +66,19 @@ export function settle(
   live = false,
 ): { who: Identity; pose: Pose; opts: DrawOptions } {
   const base = identify(name, { version: o.version })
+  const theme = themeOf(o.theme)
+  const hex = typeof o.color === 'string' ? parseHex(o.color) : null
+  const ink: Ink | undefined = hex
+    ? { body: hex, deep: deepOf(hex) }
+    : undefined
+  const named =
+    typeof o.color === 'string' && Object.hasOwn(COLORS, o.color)
+      ? (o.color as Color)
+      : undefined
   const who: Identity = {
     ...base,
     face: o.face ?? base.face,
-    color: o.color ?? base.color,
+    color: named ?? base.color,
     eyes: o.eyes ?? base.eyes,
     brows: o.brows ?? base.brows,
     mouth: o.mouth ?? base.mouth,
@@ -71,10 +91,15 @@ export function settle(
   const pose = restPose(who, o.expression ?? 'normal', o.gaze)
   const look = {
     size: o.size ?? 64,
-    frame: o.frame ?? 'ink',
+    frame: o.frame ?? (theme.name === 'soft' ? 'ink' : 'theme'),
     square: o.square ?? true,
     riso: o.riso ?? false,
     live,
+  }
+  // theme name and custom ink join the id only when set: peek@1 ids hold
+  const extra = {
+    ...(theme.name === 'soft' ? {} : { theme: theme.name }),
+    ...(ink ? { ink } : {}),
   }
   // Keep the byte-level peek@1 contract for faces without accessories.
   const { eyewear, headwear, neckwear, ...legacy } = who
@@ -82,8 +107,12 @@ export function settle(
     eyewear !== 'none' || headwear !== 'none' || neckwear !== 'none'
   const id =
     o.id ??
-    `peek-${fnv1a(JSON.stringify([wardrobe ? who : legacy, pose, look])).toString(36)}`
-  return { who, pose, opts: { ...look, id, title: o.title ?? name } }
+    `peek-${fnv1a(JSON.stringify([wardrobe ? who : legacy, pose, { ...look, ...extra }])).toString(36)}`
+  return {
+    who,
+    pose,
+    opts: { ...look, theme, ink, id, title: o.title ?? name },
+  }
 }
 
 // characters XML 1.0 cannot hold at all: C0 controls and lone surrogates

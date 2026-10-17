@@ -33,3 +33,5 @@ export {
   PARTS,
   VERSIONS,
 } from './tables'
+export type { Ink, Theme } from './themes'
+export { deepOf, defineTheme, parseHex, THEMES, themeOf } from './themes'

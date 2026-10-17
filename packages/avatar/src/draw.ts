@@ -21,6 +21,7 @@ import {
   type FaceGeom,
   INK,
 } from './tables'
+import type { Ink, Theme } from './themes'
 
 export type Node = {
   tag: string
@@ -29,7 +30,15 @@ export type Node = {
   children: Node[]
 }
 
-export type Frame = 'ink' | 'bone' | 'paper' | 'none'
+// perceived lightness of a #rrggbb fill, 0..1
+const luma = (hex: string) => {
+  const v = Number.parseInt(hex.slice(1), 16)
+  return (
+    (0.2126 * (v >> 16) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255
+  )
+}
+
+export type Frame = 'ink' | 'bone' | 'paper' | 'none' | 'theme'
 export type Gaze = readonly [x: number, y: number]
 
 export type Pose = Channels & {
@@ -47,6 +56,10 @@ export type DrawOptions = {
   /** Rendered size in px: drives the stroke ramp and the riso print. */
   size: number
   frame: Frame
+  /** The palette and structure inks. */
+  theme: Theme
+  /** A resolved body ink (a hex colour) that replaces the theme's slot. */
+  ink?: Ink
   /** false clips the frame to a circle. */
   square: boolean
   /** Riso plates, misregistration and grain. Fades out below 120px. */
@@ -232,7 +245,20 @@ function prune(node: Node): Node | null {
 
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const sh: FaceGeom = FACES[who.face]
-  const { body: fill, deep } = COLORS[who.color]
+  const slot: Ink = o.ink ?? o.theme.colors[who.color]
+  const { body: fill, deep } = slot
+  const T = o.theme
+  const inkC = T.ink(slot)
+  const frameFill =
+    o.frame === 'theme'
+      ? T.frame
+      : o.frame === 'ink'
+        ? INK.ink
+        : o.frame === 'bone'
+          ? INK.bone
+          : INK.paper
+  // a dark ground gets bone speckle and a bone lattice
+  const dark = o.frame === 'theme' ? luma(T.frame) < 0.5 : o.frame === 'ink'
   const P = who.persona
   const mul = P.mul as Partial<Record<Channel, number>>
   const add = P.add as Partial<Record<Channel, number>>
@@ -312,8 +338,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   if (riso) defs.push(plate('A', 4, 11, 3.2), plate('B', 9, 23, 2.2))
   if (grainy) {
     // bone speckle on ink, ink speckle on light grounds
-    const [r, gg, b] =
-      o.frame === 'ink' ? [0.953, 0.941, 0.91] : [0.102, 0.098, 0.094]
+    const [r, gg, b] = dark ? [0.953, 0.941, 0.91] : [0.102, 0.098, 0.094]
     defs.push(
       n(
         'filter',
@@ -438,7 +463,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           cy: 0,
           rx: f2(rx),
           ry: f2(ry),
-          fill: INK.paper,
+          fill: T.sclera(slot),
         }),
       )
     inner.push(
@@ -446,7 +471,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         cx: f2(px),
         cy: f2(py),
         r: f2(pr),
-        fill: INK.ink,
+        fill: T.pupil(slot),
       }),
       n('circle', `${kk}.shine`, {
         cx: f2(px + pr * 0.44),
@@ -464,7 +489,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           rx: f2(rx - rimW / 2),
           ry: f2(ry - rimW / 2),
           fill: 'none',
-          stroke: INK.ink,
+          stroke: inkC,
           'stroke-width': f2(rimW),
         }),
       )
@@ -504,7 +529,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           {
             'clip-path': `url(#${id}-e${i})`,
             fill: 'none',
-            stroke: INK.ink,
+            stroke: inkC,
             'stroke-width': f2(rimW),
           },
           [
@@ -532,7 +557,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         d: `M${f2(-hw)} ${f2(yy - 2)}Q0 ${f2(yy + 6)} ${f2(hw)} ${f2(yy - 2)}`,
         transform: `rotate(${f2(a * 0.6)})`,
         fill: 'none',
-        stroke: INK.ink,
+        stroke: inkC,
         'stroke-linecap': 'round',
         'stroke-width': f2(sw * 0.85),
         opacity: co > 0.01 ? f2(co) : 0,
@@ -607,8 +632,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       return n('path', key, {
         d: `M${f2(-hw)} ${f2(-tl / 2)}Q0 ${f2(c - dm)} ${f2(hw)} ${f2(-tr / 2)}L${f2(hw)} ${f2(tr / 2)}Q0 ${f2(c + dm)} ${f2(-hw)} ${f2(tl / 2)}Z`,
         transform,
-        fill: INK.ink,
-        stroke: INK.ink,
+        fill: inkC,
+        stroke: inkC,
         'stroke-linejoin': 'round',
         'stroke-width': f2(to),
       })
@@ -617,7 +642,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       d: `M${f2(-w)} 0Q0 ${f2(ca)} ${f2(w)} 0`,
       transform,
       fill: 'none',
-      stroke: INK.ink,
+      stroke: inkC,
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
       'stroke-width': f2(bw * k2),
@@ -646,8 +671,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const mouth = n('path', 'mouth', {
     d,
     transform: `translate(${f2(m.x + g('mx'))} ${f2(m.y + g('my'))}) rotate(${f2(g('mk'))})`,
-    fill: open ? 'none' : INK.ink,
-    stroke: INK.ink,
+    fill: open ? 'none' : inkC,
+    stroke: inkC,
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
     'stroke-width': f2(open ? sw : m.sw * st),
@@ -1015,9 +1040,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // the thing in the corner: a dot lattice from the mark's vocabulary
   const scene: Node[] = []
   if (o.frame !== 'none') {
-    const bg =
-      o.frame === 'ink' ? INK.ink : o.frame === 'bone' ? INK.bone : INK.paper
-    scene.push(n('rect', 'bg', { ...VBr, fill: bg }))
+    scene.push(n('rect', 'bg', { ...VBr, fill: frameFill }))
     const th = clamp(g('thing'), 0, 1)
     const dots: Node[] = []
     for (let j = 0; j < 3; j++)
@@ -1033,9 +1056,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           }),
         )
       }
-    scene.push(
-      n('g', 'lattice', { fill: o.frame === 'ink' ? INK.bone : INK.ink }, dots),
-    )
+    scene.push(n('g', 'lattice', { fill: dark ? INK.bone : INK.ink }, dots))
   }
   scene.push(av)
   if (grainy)
@@ -1043,7 +1064,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       n('rect', 'grain', {
         ...VBr,
         filter: `url(#${id}-grain)`,
-        opacity: o.frame === 'ink' ? 0.3 : 0.16,
+        opacity: dark ? 0.3 : 0.16,
         'pointer-events': 'none',
       }),
     )
