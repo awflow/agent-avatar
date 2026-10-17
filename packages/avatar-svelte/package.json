@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "svelte-package -i src -o dist",
+    "build": "svelte-package -i src -o dist && bun scripts/dts.ts",
     "prepack": "bun run build",
     "check-types": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run"

@@ -84,8 +84,7 @@ describe('manifests', () => {
         readFileSync(join(packages, dir, 'package.json'), 'utf8'),
       )
       // the element registers its tags on import: it lists its own files
-      const expected =
-        dir === 'avatar-element' ? ['./dist/index.js', './src/index.ts'] : false
+      const expected = dir === 'avatar-element' ? ['./dist/index.js'] : false
       expect(`${dir} ${JSON.stringify(pkg.sideEffects)}`).toBe(
         `${dir} ${JSON.stringify(expected)}`,
       )

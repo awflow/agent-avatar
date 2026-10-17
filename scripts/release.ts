@@ -300,6 +300,106 @@ try {
   rmSync(stage, { recursive: true, force: true })
 }
 
+/** Every public entry and subpath, as a consumer imports them. */
+const ENTRIES = [
+  '@awflow/avatar',
+  '@awflow/avatar/adapter',
+  '@awflow/avatar/svg',
+  '@awflow/avatar/compat',
+  '@awflow/avatar/ai',
+  '@awflow/avatar/identity',
+  '@awflow/avatar/cli',
+  '@awflow/avatar-export',
+  '@awflow/avatar-svelte',
+  '@awflow/avatar-react',
+  '@awflow/avatar-vue',
+  '@awflow/avatar-solid',
+  '@awflow/avatar-element',
+]
+/** The frameworks' own packages, for their types. */
+const CONSUMER_DEPS: Record<string, string> = {
+  react: '^19.2.0',
+  '@types/react': '^19.2.0',
+  vue: '^3.5.0',
+  svelte: '^5.20.0',
+  'solid-js': '^1.9.0',
+  typescript: readJson(join(ROOT, 'node_modules/typescript/package.json'))
+    .version,
+}
+
+/**
+ * Installs the tarballs into a fresh consumer and typechecks an import of
+ * every public entry with library checking on (skipLibCheck false), strict,
+ * under moduleResolution bundler and under nodenext, so a shipped .d.ts that
+ * names an untyped module or an extensionless relative path fails here.
+ */
+function consumerTypes() {
+  console.log('\n== consumer typecheck (bundler, nodenext)')
+  const dir = mkdtempSync(join(tmpdir(), 'awflow-release-consumer-'))
+  try {
+    const tarballs = Object.fromEntries(
+      packed.map(({ name, file }) => [name, `file:${file}`]),
+    )
+    writeFileSync(
+      join(dir, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: 'awflow-release-consumer',
+          private: true,
+          type: 'module',
+          dependencies: tarballs,
+          devDependencies: CONSUMER_DEPS,
+          // the tarballs depend on each other at ^version, not yet on npm
+          overrides: tarballs,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    run('bun', ['install', '--no-save'], dir)
+    writeFileSync(
+      join(dir, 'entries.ts'),
+      `${ENTRIES.map((e, i) => `import * as m${i} from '${e}'`).join('\n')}\n` +
+        `export const all = [${ENTRIES.map((_, i) => `m${i}`).join(', ')}]\n`,
+    )
+    const common = {
+      strict: true,
+      skipLibCheck: false,
+      noEmit: true,
+      target: 'ES2022',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      types: [],
+    }
+    const modes = {
+      bundler: { module: 'ESNext', moduleResolution: 'bundler' },
+      nodenext: { module: 'NodeNext', moduleResolution: 'NodeNext' },
+    }
+    for (const [mode, o] of Object.entries(modes)) {
+      const config = `tsconfig.${mode}.json`
+      writeFileSync(
+        join(dir, config),
+        JSON.stringify({
+          compilerOptions: { ...common, ...o },
+          files: ['entries.ts'],
+        }),
+      )
+      const r = spawnSync(
+        join(dir, 'node_modules/.bin/tsc'),
+        ['-p', config, '--pretty', 'false'],
+        { cwd: dir, encoding: 'utf8' },
+      )
+      const lines = `${r.stdout}${r.stderr}`.split('\n').filter(Boolean)
+      if (r.status !== 0) {
+        for (const line of lines) fail(`tsc ${mode}`, line)
+        if (!lines.length) fail(`tsc ${mode}`, `exit ${r.status}`)
+      } else console.log(`tsc ${mode}: ${ENTRIES.length} entries, 0 errors`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+if (!errors.length) consumerTypes()
+
 if (errors.length) {
   console.error(`\nrelease: ${errors.length} violation(s)`)
   for (const e of errors) console.error(`  ${e}`)

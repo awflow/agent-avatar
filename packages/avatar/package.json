@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "awflow-avatar": "./bin/awflow-avatar.mjs"
   },
@@ -45,6 +48,7 @@
     },
     "./cli": {
       "awflow-src": "./bin/cli.mjs",
+      "types": "./bin/cli.d.mts",
       "default": "./bin/cli.mjs"
     }
   },

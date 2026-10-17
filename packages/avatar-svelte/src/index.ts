@@ -9,4 +9,4 @@ export type {
 } from '@awflow/avatar/adapter'
 export { default as Avatar } from './avatar.svelte'
 export { default as AvatarGroup } from './avatar-group.svelte'
-export type { AvatarGroupContext } from './group'
+export type { AvatarGroupContext } from './group.js'

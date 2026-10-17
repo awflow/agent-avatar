@@ -4,6 +4,7 @@
  */
 import {
   createElement,
+  type ReactElement,
   type ReactNode,
   useEffect,
   useLayoutEffect,
@@ -20,7 +21,10 @@ export type AvatarGroupProps = {
 const useIsoLayoutEffect =
   typeof document === 'undefined' ? useEffect : useLayoutEffect
 
-export function AvatarGroup({ speaker, children }: AvatarGroupProps) {
+export function AvatarGroup({
+  speaker,
+  children,
+}: AvatarGroupProps): ReactElement {
   const [group] = useState(createGroup)
   useIsoLayoutEffect(() => {
     group.setSpeaker(speaker)

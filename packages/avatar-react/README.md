@@ -22,7 +22,7 @@ import { Avatar, AvatarGroup, type AvatarRef } from '@awflow/avatar-react'
 
 <Avatar name="Ada Lovelace" />
 <Avatar name="Linh" expression="happy" size={128} />
-<Avatar name="Doan Labs" animate gaze="pointer" />
+<Avatar name="Linh" animate gaze="pointer" />
 ```
 
 ## Props

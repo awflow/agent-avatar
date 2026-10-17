@@ -4,8 +4,7 @@
   "type": "module",
   "types": "./dist/index.d.ts",
   "sideEffects": [
-    "./dist/index.js",
-    "./src/index.ts"
+    "./dist/index.js"
   ],
   "exports": {
     ".": {

@@ -47,8 +47,10 @@ export function paletteFor(
   pixels: number,
   frame: (i: number) => Uint8Array,
 ): {
-  format: gifenc.Format
-  palette: gifenc.Palette
+  // spelled out, not gifenc's names: gifenc ships no types, and a shipped
+  // .d.ts naming its module fails for consumers checking library types
+  format: 'rgb565' | 'rgb444' | 'rgba4444'
+  palette: number[][]
   transparentIndex: number
 } {
   const stride = Math.max(1, Math.ceil((count * pixels) / SAMPLE_PIXELS))
