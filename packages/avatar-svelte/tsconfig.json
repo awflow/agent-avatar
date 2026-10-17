@@ -1,0 +1,12 @@
+{
+  "extends": "@awflow/typescript-config/svelte.json",
+  "compilerOptions": {
+    "types": ["svelte", "vite/client"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "preview/**/*.ts",
+    "preview/**/*.svelte"
+  ]
+}
