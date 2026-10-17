@@ -6,6 +6,7 @@ TypeScript. Packages: `packages/avatar` (`@awflow/avatar`, core),
 `packages/avatar-svelte` (`@awflow/avatar-svelte`), `packages/avatar-react`
 (`@awflow/avatar-react`), `packages/avatar-vue` (`@awflow/avatar-vue`),
 `packages/avatar-solid` (`@awflow/avatar-solid`),
+`packages/avatar-element` (`@awflow/avatar-element`),
 `packages/typescript-config`. The core never imports a framework.
 
 `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it. Never replace

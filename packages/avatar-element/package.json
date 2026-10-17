@@ -1,0 +1,60 @@
+{
+  "name": "@awflow/avatar-element",
+  "version": "0.0.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "./dist/index.js",
+    "./src/index.ts"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "prepack": "bun scripts/build.ts",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@awflow/avatar": "workspace:^"
+  },
+  "devDependencies": {
+    "@awflow/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "happy-dom": "^20.14.5",
+    "typescript": "^6.0.2",
+    "vitest": "^5"
+  },
+  "description": "Deterministic SVG avatars from a name, as <awf-avatar> custom elements.",
+  "license": "MIT",
+  "author": "AWFlow",
+  "homepage": "https://github.com/awflow/avatar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/awflow/avatar.git",
+    "directory": "packages/avatar-element"
+  },
+  "keywords": [
+    "avatar",
+    "svg",
+    "custom-element",
+    "web-components",
+    "deterministic",
+    "avatar-library"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
