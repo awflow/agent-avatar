@@ -195,6 +195,48 @@ describe('Live.setActivity', () => {
   })
 })
 
+describe('reduced motion toggled', () => {
+  test('turning it off picks up from the static frame without a jump', () => {
+    const shown = (rig: any, c: string) => rig.val[c] + rig.out[c]
+    for (const activity of ['done', 'speaking', 'working'] as Activity[]) {
+      const { live, rig } = mount('Linh', { activity })
+      for (let i = 0; i < 200; i++) live.step(1 / 60)
+      live.setReduced(true)
+      const before = Object.fromEntries(
+        ['alt', 'mb', 'gx'].map((c) => [c, shown(rig, c)]),
+      )
+      live.setReduced(false)
+      live.step(1 / 60)
+      // a fresh avatar's first frame: the loop's own motion, not a pop
+      const fresh = mount('Linh', { activity })
+      const start = Object.fromEntries(
+        ['alt', 'mb', 'gx'].map((c) => [c, shown(fresh.rig, c)]),
+      )
+      fresh.live.step(1 / 60)
+      for (const c of ['alt', 'mb', 'gx']) {
+        const moved = shown(rig, c) - before[c]!
+        const natural = shown(fresh.rig, c) - start[c]!
+        expect(Math.abs(moved - natural)).toBeLessThan(0.05)
+        // the speaking flap itself moves mb up to ~0.08 a frame
+        if (c !== 'mb') expect(Math.abs(moved)).toBeLessThan(0.05)
+      }
+      fresh.live.destroy()
+      live.destroy()
+    }
+  })
+
+  test('turning it off restarts the ease, not the old clock', () => {
+    const { live, rig } = mount('Linh', { activity: 'done' })
+    for (let i = 0; i < 200; i++) live.step(1 / 60)
+    live.setReduced(true)
+    live.setReduced(false)
+    live.step(1 / 60)
+    // the loop clock starts over at the static phase the reduced frame showed
+    expect(rig.clock - rig.loopStart).toBeCloseTo(1 / 60, 6)
+    live.destroy()
+  })
+})
+
 describe('accessory physics', () => {
   test('a startled hop swings the sprout, and the node set never changes', () => {
     const { live, count, rig } = mount('Linh', { headwear: 'sprout' } as any)

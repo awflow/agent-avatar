@@ -345,6 +345,9 @@ export class Live {
   private prev = new Map<string, Record<string, string>>()
   private io: IntersectionObserver | null = null
   private clock = 0
+  // when the loop clock last started at the static phase: at bind, and when
+  // reduced motion turns off
+  private loopStart = 0
   private enteredAt = 0
   private val: Channels
   private vel = zero()
@@ -398,13 +401,7 @@ export class Live {
     this.setGaze(gaze)
     const start = restPose(who, expression, this.gaze(), this.activity)
     this.val = { ...start }
-    // the server painted the static loop into the pose: from here `out`
-    // carries it, so the springs settle on the bare blend and nothing jumps
-    const rest = restLoop(this.activity, this.phase)
-    for (const c in rest) {
-      this.val[c as Channel] -= rest[c as Channel]!
-      this.out[c as Channel] = rest[c as Channel]!
-    }
+    this.handOff()
     this.base = this.target()
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
     this.lookThing =
@@ -423,6 +420,21 @@ export class Live {
     run()
   }
 
+  /**
+   * The static pose carries the loop at its static phase: from here `out`
+   * carries it, so the springs settle on the bare blend, and the loop clock
+   * starts over at that phase so nothing jumps.
+   */
+  private handOff() {
+    const rest = restLoop(this.activity, this.phase)
+    this.out = zero()
+    for (const c in rest) {
+      this.val[c as Channel] -= rest[c as Channel]!
+      this.out[c as Channel] = rest[c as Channel]!
+    }
+    this.loopStart = this.clock
+  }
+
   destroy() {
     ALL.delete(this)
     LIVE.delete(this)
@@ -434,6 +446,9 @@ export class Live {
     if (reduced === this.reduced) return
     this.reduced = reduced
     if (!reduced) {
+      // pick up from the static frame snap() left: the trait sits still
+      this.handOff()
+      this.lag = { y: -this.val.alt * frameOf(FACES[this.who.face]).R, v: 0 }
       LIVE.add(this)
       run()
       return
@@ -806,12 +821,13 @@ export class Live {
     // channel) eases in over the first half second instead of popping.
     const voice = this.level()
     this.voice = voice
-    const loop = activityLoop(this.activity, REST_T + t, this.phase, voice < 0)
+    const lt = t - this.loopStart
+    const loop = activityLoop(this.activity, REST_T + lt, this.phase, voice < 0)
     if (voice >= 0) {
       out.mb += 0.85 * voice
       out.mt -= 0.35 * voice
     }
-    const ease = Math.min(1, t / 0.5)
+    const ease = Math.min(1, lt / 0.5)
     for (const c in loop) {
       const painted = this.activity !== 'idle' && c !== 'alt' && c !== 'x'
       out[c as Channel] += loop[c as Channel]! * (painted ? 1 : ease)
@@ -939,7 +955,7 @@ export class Live {
       expression: this.state,
       activity: this.activity,
       // reduced motion freezes loops and fx at the static phase
-      t: REST_T + (this.reduced ? 0 : this.clock),
+      t: REST_T + (this.reduced ? 0 : this.clock - this.loopStart),
       wob: this.reduced ? 0 : this.swing.angle,
       fx: this.fxKind,
       fxP: this.fxP,
