@@ -222,3 +222,18 @@ describe('Live.react', () => {
     motion.reduce = false
   })
 })
+
+describe('REACTIONS is frozen', () => {
+  test('the table and each entry refuse writes', () => {
+    const r = REACTIONS as any
+    expect(Object.isFrozen(r)).toBe(true)
+    expect(() => {
+      r.nod = { dur: 9, at: () => ({}) }
+    }).toThrow(TypeError)
+    for (const k of NAMES) expect(Object.isFrozen(r[k])).toBe(true)
+    expect(() => {
+      r.hop.dur = 9
+    }).toThrow(TypeError)
+    expect(REACTIONS.nod.dur).toBe(0.9)
+  })
+})

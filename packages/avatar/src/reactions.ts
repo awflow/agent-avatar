@@ -23,11 +23,11 @@ export type Reaction =
 
 export type ReactionSpec = {
   /** Seconds. */
-  dur: number
+  readonly dur: number
   /** Channel deltas at progress p, 0..1. */
-  at: (p: number) => Partial<Channels>
+  readonly at: (p: number) => Partial<Channels>
   /** An overlay drawn for the whole reaction, its progress p. */
-  fx?: FxKind
+  readonly fx?: FxKind
 }
 
 const s = Math.sin
@@ -37,7 +37,7 @@ const FRAME_X = 3.4
 const easeInOutQuad = (p: number) =>
   p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
 
-export const REACTIONS: Record<Reaction, ReactionSpec> = {
+const TABLE: Record<Reaction, ReactionSpec> = {
   nod: {
     dur: 0.9,
     at: (p) => ({
@@ -131,6 +131,14 @@ export const REACTIONS: Record<Reaction, ReactionSpec> = {
     fx: 'confetti',
   },
 }
+
+/* frozen, entries too: one consumer cannot reshape another's gestures */
+export const REACTIONS: Readonly<Record<Reaction, ReactionSpec>> =
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(TABLE).map(([k, r]) => [k, Object.freeze({ ...r })]),
+    ) as Record<Reaction, ReactionSpec>,
+  )
 
 /** Narrow anything to a known reaction, or null. */
 export function reactionOf(v: unknown): Reaction | null {

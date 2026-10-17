@@ -52,3 +52,29 @@ describe('toSvg activity', () => {
       }
   })
 })
+
+describe('ACTIVITIES is frozen', () => {
+  test('the table, each entry, its set and its fx refuse writes', () => {
+    // modules are strict: a write to a frozen object throws
+    const a = ACTIVITIES as any
+    expect(Object.isFrozen(a)).toBe(true)
+    expect(() => {
+      a.idle = { set: {}, fx: [], lockGaze: true }
+    }).toThrow(TypeError)
+    for (const k of KEYS) {
+      expect(Object.isFrozen(a[k])).toBe(true)
+      expect(Object.isFrozen(a[k].set)).toBe(true)
+      expect(Object.isFrozen(a[k].fx)).toBe(true)
+    }
+    expect(() => {
+      a.thinking.lockGaze = false
+    }).toThrow(TypeError)
+    expect(() => {
+      a.thinking.set.gx = 1
+    }).toThrow(TypeError)
+    expect(() => a.thinking.fx.push('zzz')).toThrow(TypeError)
+    expect(ACTIVITIES.thinking.lockGaze).toBe(true)
+    expect(ACTIVITIES.thinking.set.gx).toBe(-0.35)
+    expect(ACTIVITIES.thinking.fx).toEqual(['bubbles'])
+  })
+})

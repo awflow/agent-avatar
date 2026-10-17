@@ -1,4 +1,4 @@
-export type { Activity } from './activity'
+export type { Activity, ActivitySpec } from './activity'
 export { ACTIVITIES, activityLoop, blend } from './activity'
 export type { AvatarProps } from './avatar'
 export { Avatar } from './avatar'

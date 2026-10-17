@@ -22,10 +22,23 @@ export type Activity =
   | 'sleeping'
   | 'offline'
 
-export const ACTIVITIES: Record<
-  Activity,
-  { set: Partial<Channels>; fx: FxKind[]; lockGaze: boolean }
-> = {
+/** What an activity does: channels it sets, overlays it draws, gaze lock. */
+export type ActivitySpec = {
+  readonly set: Readonly<Partial<Channels>>
+  readonly fx: readonly FxKind[]
+  readonly lockGaze: boolean
+}
+
+/* the table and everything in it is frozen: one consumer cannot reshape
+ * another's avatars */
+const freezeSpec = (a: ActivitySpec): ActivitySpec =>
+  Object.freeze({
+    set: Object.freeze({ ...a.set }),
+    fx: Object.freeze([...a.fx]),
+    lockGaze: a.lockGaze,
+  })
+
+const TABLE: Record<Activity, ActivitySpec> = {
   idle: { set: {}, fx: [], lockGaze: false },
   listening: {
     set: { lid: 0, eyeS: 1.06, browY: -4, rot: 5, mw: 0.5, mb: 0.3, gx: -0.3 },
@@ -133,6 +146,13 @@ export const ACTIVITIES: Record<
     lockGaze: true,
   },
 }
+
+export const ACTIVITIES: Readonly<Record<Activity, ActivitySpec>> =
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(TABLE).map(([k, a]) => [k, freezeSpec(a)]),
+    ) as Record<Activity, ActivitySpec>,
+  )
 
 /** Narrow anything to a known activity; unknown values are idle. */
 export function activityOf(v: unknown): Activity {
