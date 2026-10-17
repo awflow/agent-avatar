@@ -134,4 +134,52 @@ describe('awflow-avatar', () => {
       )
     }
   })
+
+  test('sheet keeps every cell and distinct ids for repeated names', async () => {
+    const r = await cli(['sheet', '-'], 'Linh\nLinh\nLinh\n')
+    expect(r.code).toBe(0)
+    expect(r.text.match(/<svg /g)?.length).toBe(4)
+    const ids = r.text.match(/ id="[^"]+"/g)!
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test('after -- the word sheet is a name', async () => {
+    const r = await cli(['--', 'sheet'])
+    expect(r.code).toBe(0)
+    expect(r.text).toContain('aria-label="sheet"')
+    expect((await cli(['--help'])).text).toContain('After --')
+  })
+
+  test('a closed pipe is quiet', async () => {
+    const p = Bun.spawn(
+      [
+        'sh',
+        '-c',
+        `node ${bin} sheet - --size 200 < ${join(root, 'package.json')} | true; exit \${'$'}{PIPESTATUS:-0}`,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    )
+    const err = await new Response(p.stderr).text()
+    await p.exited
+    expect(err).not.toContain('EPIPE')
+    expect(err).not.toContain('Error')
+  })
+
+  test('an unreadable sheet file says why', async () => {
+    const r = await cli(['sheet', '/no/such/file'])
+    expect(r.err).toContain('ENOENT')
+  })
+
+  // /dev/full is Linux only
+  test.skipIf(!existsSync('/dev/full'))(
+    'a failing stdout is one line and non-zero',
+    async () => {
+      const p = Bun.spawn(['sh', '-c', `node ${bin} Linh > /dev/full`], {
+        stderr: 'pipe',
+      })
+      const err = await new Response(p.stderr).text()
+      expect(await p.exited).toBe(1)
+      expect(err).toBe('awflow-avatar: cannot write output: ENOSPC\n')
+    },
+  )
 })

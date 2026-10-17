@@ -32,6 +32,7 @@ const USAGE = `awflow-avatar: deterministic SVG avatars from a name
 Usage:
   awflow-avatar <name> [options]        SVG on stdout
   awflow-avatar sheet <file|-> [options]  names, one per line, as one SVG grid
+  After --, every argument is a name: awflow-avatar -- sheet draws "sheet".
 
 Options:
   --theme <t>        ${Object.keys(THEMES).join(' | ')}
@@ -158,10 +159,10 @@ function parse(argv) {
     }
   }
   if (flags.dress) opts.dress = true
-  return { positionals, opts, flags }
+  return { positionals, opts, flags, literal: rest }
 }
 
-/** The SVGs of `names` as one grid; ids stay distinct because toSvg derives them from what is drawn. */
+/** The SVGs of `names` as one grid; each cell gets its own id prefix, so repeated names keep distinct ids. */
 function grid(names, opts) {
   const cell = opts.size ?? 96
   const gap = Math.round(cell / 8)
@@ -172,7 +173,7 @@ function grid(names, opts) {
   const cells = names.map((name, i) => {
     const x = (i % cols) * (cell + gap)
     const y = Math.floor(i / cols) * (cell + gap)
-    return toSvg(name, { ...opts, size: cell }).replace(
+    return toSvg(name, { ...opts, size: cell, id: `s${i}` }).replace(
       '<svg ',
       `<svg x="${x}" y="${y}" `,
     )
@@ -201,7 +202,7 @@ async function exporter(loadExport) {
  */
 export async function main(argv, io) {
   try {
-    const { positionals, opts, flags } = parse(argv)
+    const { positionals, opts, flags, literal } = parse(argv)
     if (flags.help) {
       io.out(USAGE)
       return 0
@@ -212,7 +213,7 @@ export async function main(argv, io) {
     }
     const raster = [flags.png, flags.gif, flags.sprite].filter(Boolean).length
     if (raster > 1) fail('use one of --png, --gif and --sprite')
-    const sheet = positionals[0] === 'sheet'
+    const sheet = !literal && positionals[0] === 'sheet'
     let names
     if (sheet) {
       if (positionals.length !== 2) fail('usage: awflow-avatar sheet <file|->')
@@ -222,8 +223,8 @@ export async function main(argv, io) {
           positionals[1] === '-'
             ? io.stdin()
             : readFileSync(positionals[1], 'utf8')
-      } catch {
-        fail(`cannot read ${positionals[1]}`)
+      } catch (e) {
+        fail(`cannot read ${positionals[1]}: ${e?.code ?? e?.message ?? e}`)
       }
       names = text
         .split(/\r?\n/)
@@ -280,6 +281,23 @@ export async function run(argv, loadExport) {
   })
   const all = Buffer.concat(chunks)
   // exitCode, not exit(): a piped stdout must drain first
-  if (all.length) await new Promise((r) => process.stdout.write(all, r))
-  process.exitCode = code
+  let failure
+  if (all.length)
+    await new Promise((resolve) => {
+      const done = (e) => {
+        failure = failure ?? e
+        resolve()
+      }
+      process.stdout.on('error', done)
+      process.stdout.write(all, (e) => (e ? done(e) : resolve()))
+    })
+  // a reader that went away (| head) is not a failure
+  if (failure && failure.code !== 'EPIPE') {
+    process.stderr.write(
+      `awflow-avatar: cannot write output: ${failure.code ?? failure.message}\n`,
+    )
+    process.exitCode = 1
+    return
+  }
+  process.exitCode = failure ? 0 : code
 }
