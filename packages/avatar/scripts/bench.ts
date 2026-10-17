@@ -1,6 +1,10 @@
 /*
  * Perf budget (spec §9): 100 animated 48 px avatars with mixed activities in
- * a real Chromium page for 10 s. Pass = p95 frame time <= 16.7 ms.
+ * a real Chromium page for 10 s. Pass = p95 frame time <= 16.7 ms and p95
+ * of the shared loop's own callback <= 16.7 ms (the frame p95 alone is
+ * quantised to the display's vsync), on a real run: exactly `count` svgs,
+ * every one inside the viewport (off-screen avatars pause), and at least
+ * 50 loop callbacks per second recorded.
  *
  *   bun run build && bun packages/avatar/scripts/bench.ts [--seconds 10]
  *     [--count 100] [--size 48] [--headed] [--json] [--profile]
@@ -97,6 +101,9 @@ type Run = {
   frames: number[]
   loop: number[]
   long: number[]
+  /** svgs in the grid, and how many of them reach outside the viewport */
+  svgs: number
+  outside: number
   profile?: { fn: string; ms: number }[]
 }
 
@@ -161,6 +168,17 @@ async function measure(count: number, seconds: number): Promise<Run> {
         }
         // warm up: the first frames compile and lay out
         await new Promise((r) => setTimeout(r, 1000))
+        const svgs = Array.from(grid.querySelectorAll('svg'))
+        const outside = svgs.filter((svg) => {
+          const r = svg.getBoundingClientRect()
+          return (
+            r.width === 0 ||
+            r.left < 0 ||
+            r.top < 0 ||
+            r.right > innerWidth ||
+            r.bottom > innerHeight
+          )
+        }).length
         w.__loop.length = 0
         w.__long.length = 0
         const frames: number[] = []
@@ -176,7 +194,13 @@ async function measure(count: number, seconds: number): Promise<Run> {
           }
           frame(step)
         })
-        return { frames, loop: [...w.__loop], long: [...w.__long] }
+        return {
+          frames,
+          loop: [...w.__loop],
+          long: [...w.__long],
+          svgs: svgs.length,
+          outside,
+        }
       },
       { count, seconds, size: SIZE },
     )
@@ -224,8 +248,21 @@ try {
     longTasks: { count: run.long.length, max: Math.max(0, ...run.long) },
     budget: BUDGET_MS,
   }
-  const pass = report.frames.p95 <= BUDGET_MS
-  if (JSON_OUT) console.log(JSON.stringify({ ...report, pass }, null, 2))
+  // a run that did not measure what it claims is a failure, not a pass
+  const guards: string[] = []
+  if (run.svgs !== COUNT) guards.push(`${run.svgs} svgs, expected ${COUNT}`)
+  if (run.outside)
+    guards.push(`${run.outside} svgs outside the viewport (they would pause)`)
+  if (run.loop.length < SECONDS * 50)
+    guards.push(
+      `${run.loop.length} loop callbacks, expected at least ${SECONDS * 50}`,
+    )
+  if (report.loop.p95 > BUDGET_MS)
+    guards.push(`loop p95 ${report.loop.p95} ms over ${BUDGET_MS} ms`)
+  const pass = report.frames.p95 <= BUDGET_MS && guards.length === 0
+  const checks = { svgs: run.svgs, outside: run.outside, guards }
+  if (JSON_OUT)
+    console.log(JSON.stringify({ ...report, checks, pass }, null, 2))
   else {
     const f = (s: ReturnType<typeof stats>) =>
       `n=${s.n} mean=${s.mean} p50=${s.p50} p95=${s.p95} p99=${s.p99} max=${s.max} ms`
@@ -237,6 +274,10 @@ try {
     console.log(
       `long      ${report.longTasks.count} long tasks, max ${report.longTasks.max.toFixed(1)} ms`,
     )
+    console.log(
+      `checks    ${run.svgs} svgs · ${run.outside} outside the viewport · ${run.loop.length} loop callbacks`,
+    )
+    for (const g of guards) console.log(`  guard failed: ${g}`)
     if (run.profile) {
       const n = (run.frames.length || 1) + 60 // the warm-up second too
       console.log('profile   self time per frame (ms), heaviest first')
@@ -244,7 +285,7 @@ try {
         console.log(`  ${(ms / n).toFixed(3).padStart(7)}  ${fn}`)
     }
     console.log(
-      `${pass ? 'PASS' : 'FAIL'}      p95 ${report.frames.p95} ms (budget ${BUDGET_MS} ms)`,
+      `${pass ? 'PASS' : 'FAIL'}      frames p95 ${report.frames.p95} ms · loop p95 ${report.loop.p95} ms (budget ${BUDGET_MS} ms)`,
     )
   }
   process.exitCode = pass ? 0 : 1

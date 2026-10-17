@@ -1,7 +1,11 @@
 # Performance
 
 The budget (spec §9): **100 animated 48 px avatars with mixed activities,
-in a real Chromium page, for 10 s. Pass = p95 frame time ≤ 16.7 ms.**
+in a real Chromium page, for 10 s. Pass = p95 frame time ≤ 16.7 ms and p95
+of the shared loop's own callback ≤ 16.7 ms.**
+
+The frame p95 alone is quantised to the display's vsync (a steady page reads
+16.67 ms whatever the work), so the loop's own time is gated too.
 
 ```
 bun run build
@@ -28,10 +32,34 @@ The page is cross-origin isolated (COOP/COEP headers). Without it Chromium
 coarsens timers to 100 µs, and a perfectly steady 60 Hz frame reads as 16.6,
 16.7 or 16.8 ms, so the p95 flipped around the budget on rounding alone.
 
+Guards make sure a run measured what it claims, or it fails:
+
+- exactly `--count` svgs in the grid after mounting;
+- every svg's box inside the viewport (an off-screen avatar pauses and would
+  flatter the numbers);
+- at least 50 loop callbacks per second recorded (the loop really ran);
+- loop p95 within the budget.
+
 The bench is a script, not part of `bun run test`. It exits 0 on a pass, 1 on
-a miss and 2 when `dist` is missing.
+a miss or a failed guard and 2 when `dist` is missing.
 
 ## Results
+
+2026-10-17, Plan 4 fix wave (guards and the loop gate in place) · Apple M2
+Pro · 16 GB · Chromium 1248 headless · Bun 1.3.14. Three consecutive runs, each
+with 100 svgs, 0 outside the viewport and 602 loop callbacks:
+
+| run | frames p50 | frames p95 | frames p99 | frames max | loop mean | loop p95 | loop max | long tasks |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 16.66 | **16.67** | 16.67 | 16.67 | 6.17 | **6.86** | 7.90 | 0 |
+| 2 | 16.66 | **16.67** | 16.67 | 16.67 | 6.12 | **6.80** | 7.77 | 0 |
+| 3 | 16.66 | **16.67** | 16.67 | 16.67 | 6.19 | **6.84** | 7.89 | 0 |
+
+**PASS**: frames p95 16.67 ms and loop p95 at most 6.86 ms, both within
+16.7 ms. A deliberately bad setup (`--count 500 --seconds 2`) fails on the
+guards: 140 svgs outside the viewport, 33 loop callbacks, loop p95 28.6 ms.
+
+### First run (Task 7)
 
 2026-10-17 · Apple M2 Pro (10 cores) · 16 GB · macOS (Darwin 25.5.0, arm64)
 · Chromium 1248 headless · Bun 1.3.14. Three consecutive runs:
