@@ -1,0 +1,14 @@
+{
+  // The docs and playground site. Every route is a prerendered asset from
+  // apps/web; there is no Worker script, so anything no file matches is a
+  // 404 page. `name` must equal the dashboard project name.
+  // Not deployed yet: replace [docs domain] once the owner picks one.
+  "name": "awflow-avatar",
+  "compatibility_date": "2026-09-30",
+  "assets": {
+    "directory": "./apps/web/dist/client",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "[docs domain]", "custom_domain": true }]
+}

@@ -15,3 +15,4 @@ graft/
 .ignore
 .svelte-kit
 .smoke-dist-*/
+.snippets

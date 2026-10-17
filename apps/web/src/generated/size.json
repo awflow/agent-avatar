@@ -1,0 +1,13 @@
+{
+  "entry": "packages/avatar/dist/index.js",
+  "files": [
+    "packages/avatar/dist/chunks/index-17k0gney.js",
+    "packages/avatar/dist/chunks/index-h6rehk5j.js",
+    "packages/avatar/dist/chunks/index-tt01fvvm.js",
+    "packages/avatar/dist/chunks/index-xjyq1svq.js",
+    "packages/avatar/dist/index.js"
+  ],
+  "bytes": 167718,
+  "gzip": 47950,
+  "kb": 46.8
+}

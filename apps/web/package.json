@@ -1,0 +1,39 @@
+{
+  "name": "web",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check-types": "tsc --noEmit",
+    "test": "bun scripts/check-snippets.ts"
+  },
+  "dependencies": {
+    "@awflow/avatar": "workspace:*",
+    "@awflow/avatar-react": "workspace:*",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@tanstack/react-router": "1.170.41",
+    "@tanstack/react-start": "1.168.60",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@awflow/avatar-element": "workspace:*",
+    "@awflow/avatar-export": "workspace:*",
+    "@awflow/avatar-solid": "workspace:*",
+    "@awflow/avatar-svelte": "workspace:*",
+    "@awflow/avatar-vue": "workspace:*",
+    "@awflow/typescript-config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "^6.0.2",
+    "vite": "8.3.1"
+  }
+}
