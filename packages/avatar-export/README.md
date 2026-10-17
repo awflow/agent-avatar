@@ -55,9 +55,10 @@ return at once.
 
 ## Limits
 
-`LIMITS` is `{ maxFrames: 600, maxSize: 1024, maxSprite: 400 }`, with
+`LIMITS` is
+`{ maxFrames: 600, maxSize: 1024, maxSprite: 400, maxSheet: 16777216 }`, with
 `maxFrames` taken from the core's `FRAME_LIMITS` (1 to 120 fps, up to 60
-seconds). Frames are `round(fps * seconds)`, checked before anything is
+seconds). `maxSheet` caps a sprite sheet's area at 4096 by 4096 pixels. Frames are `round(fps * seconds)`, checked before anything is
 drawn. A value out of range, or not a finite number, throws a `RangeError`
 that names the limit.
 

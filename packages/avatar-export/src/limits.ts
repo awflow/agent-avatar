@@ -7,13 +7,15 @@ import { FRAME_LIMITS } from '@awflow/avatar'
 
 /**
  * The export caps: `maxFrames` is the core's own (FRAME_LIMITS, one source of
- * truth), `maxSize` bounds the side of an image in pixels and `maxSprite` the
- * number of names on one sheet.
+ * truth), `maxSize` bounds the side of an image in pixels, `maxSprite` the
+ * number of names on one sheet and `maxSheet` a sheet's area in pixels
+ * (4096 squared).
  */
 export const LIMITS = Object.freeze({
   maxFrames: FRAME_LIMITS.maxFrames,
   maxSize: 1024,
   maxSprite: 400,
+  maxSheet: 16_777_216,
 })
 
 export const DEFAULTS = Object.freeze({ size: 256, fps: 24, seconds: 2 })
@@ -94,4 +96,12 @@ export function checkTiming(
       `${fn}: fps ${fps} for ${seconds} seconds rounds to 0 frames, at least 1 is needed`,
     )
   return { fps, seconds, count }
+}
+
+/** A sprite sheet's area, w * h, against maxSheet, before any allocation. */
+export function checkSheet(fn: string, w: number, h: number) {
+  if (w * h > LIMITS.maxSheet)
+    throw new RangeError(
+      `${fn}: a ${w}x${h} sheet is ${w * h} pixels, above maxSheet ${LIMITS.maxSheet}`,
+    )
 }

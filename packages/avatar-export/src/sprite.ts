@@ -3,7 +3,7 @@
  * bottom, transparent between tiles.
  */
 import { type AvatarOptions, toSvg } from '@awflow/avatar'
-import { checkGap, checkSize, checkSprite } from './limits'
+import { checkGap, checkSheet, checkSize, checkSprite } from './limits'
 import { encodePng } from './png'
 import { ensure, rgba } from './raster'
 
@@ -19,7 +19,7 @@ export type SpriteSettings = {
 /**
  * The names as one PNG grid, `columns` tiles wide: width is columns * size +
  * (columns - 1) * gap, height likewise for the rows used. The same options
- * apply to every tile. Name i sits at column i % columns, row i / columns.
+ * apply to every tile. The sheet's area is at most LIMITS.maxSheet pixels. Name i sits at column i % columns, row i / columns.
  */
 export async function toSprite(
   names: string[],
@@ -30,10 +30,11 @@ export async function toSprite(
   const columns = checkSprite(fn, names, o.columns)
   const size = checkSize(fn, o.size)
   const gap = checkGap(fn, o.gap)
-  await ensure()
   const rows = Math.ceil(names.length / columns)
   const w = columns * size + (columns - 1) * gap
   const h = rows * size + (rows - 1) * gap
+  checkSheet(fn, w, h)
+  await ensure()
   const sheet = new Uint8Array(w * h * 4)
   names.forEach((name, i) => {
     const tile = rgba(toSvg(name, opts), size)

@@ -26,7 +26,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@awflow/avatar": "workspace:*",
+    "@awflow/avatar": "workspace:^",
     "@resvg/resvg-wasm": "2.6.2",
     "fflate": "0.8.3",
     "gifenc": "1.0.3"

@@ -19,8 +19,12 @@ export type AnimationSettings = {
   seconds?: number
 }
 
-// Node's ESM loader sees gifenc's CommonJS build as one default export;
-// bundlers read its ESM build with named ones. Either way, the same API.
+// gifenc ships a CommonJS build (main) and an ESM build (module) with no
+// exports map. Node's ESM loader reads the CommonJS one and cannot see its
+// named exports, so the API sits on `default`; bundlers read the ESM build,
+// where the names are real exports. This picks whichever is there. Webpack
+// may warn that `default` is not exported from the ESM build: harmless, the
+// branch that reads it never runs there.
 const gif: typeof gifenc =
   'GIFEncoder' in gifenc && typeof gifenc.GIFEncoder === 'function'
     ? gifenc
@@ -30,6 +34,57 @@ const gif: typeof gifenc =
 const KEEP_BYTES = 64 * 1024 * 1024
 /** The palette is built from at most this many pixels, sampled evenly. */
 const SAMPLE_PIXELS = 1 << 21
+
+/**
+ * One palette for a whole animation, from an even sample of at most
+ * SAMPLE_PIXELS pixels across all frames. Transparency is looked for in every
+ * pixel, not only the sample, so a small clear area is never lost: when there
+ * is one, the palette always keeps a fully transparent entry (forced in if
+ * quantising dropped it). Exported for the tests, not from the package.
+ */
+export function paletteFor(
+  count: number,
+  pixels: number,
+  frame: (i: number) => Uint8Array,
+): {
+  format: gifenc.Format
+  palette: gifenc.Palette
+  transparentIndex: number
+} {
+  const stride = Math.max(1, Math.ceil((count * pixels) / SAMPLE_PIXELS))
+  const sample = new Uint8Array(Math.ceil((count * pixels) / stride) * 4)
+  let taken = 0
+  let next = 0
+  let clear = false
+  for (let i = 0; i < count; i++) {
+    const px = frame(i)
+    if (!clear)
+      for (let a = 3; a < px.length; a += 4)
+        if (px[a]! < 128) {
+          clear = true
+          break
+        }
+    const base = i * pixels
+    for (; next < base + pixels; next += stride) {
+      const at = (next - base) * 4
+      sample.set(px.subarray(at, at + 4), taken * 4)
+      taken++
+    }
+  }
+  const format = clear ? 'rgba4444' : 'rgb565'
+  const palette = gif.quantize(sample.subarray(0, taken * 4), 256, {
+    format,
+    oneBitAlpha: clear,
+  })
+  if (!clear) return { format, palette, transparentIndex: -1 }
+  let transparentIndex = palette.findIndex((c) => c[3] === 0)
+  if (transparentIndex < 0) {
+    // the clear pixels fell between samples: give them their own entry
+    transparentIndex = Math.min(palette.length, 255)
+    palette[transparentIndex] = [0, 0, 0, 0]
+  }
+  return { format, palette, transparentIndex }
+}
 
 async function prepare(
   fn: string,
@@ -77,29 +132,16 @@ export async function toGif(
   const held: Uint8Array[] = []
   const frame = (i: number) => held[i] ?? rgba(svgs[i]!, size)
 
-  // pass one: an even sample of every frame's pixels for the palette
-  const stride = Math.max(1, Math.ceil((count * pixels) / SAMPLE_PIXELS))
-  const sample = new Uint8Array(Math.ceil((count * pixels) / stride) * 4)
-  let taken = 0
-  let next = 0
-  let clear = false
-  for (let i = 0; i < count; i++) {
-    const px = frame(i)
-    if (keep) held[i] = px
-    const base = i * pixels
-    for (; next < base + pixels; next += stride) {
-      const at = (next - base) * 4
-      sample.set(px.subarray(at, at + 4), taken * 4)
-      if (px[at + 3]! < 128) clear = true
-      taken++
-    }
-  }
-  const format = clear ? 'rgba4444' : 'rgb565'
-  const palette = gif.quantize(sample.subarray(0, taken * 4), 256, {
-    format,
-    oneBitAlpha: clear,
-  })
-  const transparentIndex = clear ? palette.findIndex((c) => c[3] === 0) : -1
+  // pass one: one palette for every frame
+  const { format, palette, transparentIndex } = paletteFor(
+    count,
+    pixels,
+    (i) => {
+      const px = frame(i)
+      if (keep) held[i] = px
+      return px
+    },
+  )
   const transparent = transparentIndex >= 0
 
   // pass two: every frame mapped to the one palette

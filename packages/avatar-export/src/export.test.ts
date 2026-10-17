@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { FRAME_LIMITS, frames } from '@awflow/avatar'
+import { paletteFor } from './animated'
 import { init, LIMITS, toApng, toGif, toPng, toSprite } from './index'
 import { rgba } from './raster'
 import {
@@ -12,7 +13,12 @@ import {
 
 describe('LIMITS', () => {
   test('reuses the core frame cap and adds the export caps', () => {
-    expect(LIMITS).toEqual({ maxFrames: 600, maxSize: 1024, maxSprite: 400 })
+    expect(LIMITS).toEqual({
+      maxFrames: 600,
+      maxSize: 1024,
+      maxSprite: 400,
+      maxSheet: 16_777_216,
+    })
     expect(LIMITS.maxFrames).toBe(FRAME_LIMITS.maxFrames)
     expect(Object.isFrozen(LIMITS)).toBe(true)
   })
@@ -183,6 +189,19 @@ describe('toGif', () => {
 })
 
 describe('toSprite', () => {
+  test('rejects a sheet above maxSheet before rendering', async () => {
+    const start = performance.now()
+    const run = toSprite(Array(400).fill('x'), {}, { size: 1024 })
+    await expect(run).rejects.toThrow(RangeError)
+    await expect(
+      toSprite(Array(400).fill('x'), {}, { size: 1024 }),
+    ).rejects.toThrow(/maxSheet/)
+    // 400 tiles at 1024 px would take seconds; the check takes none
+    expect(performance.now() - start).toBeLessThan(200)
+    const edge = await toSprite(['A', 'B', 'C', 'D'], {}, { size: 1024 })
+    expect(readPng(edge).width).toBe(2048)
+  })
+
   test('lays names out in a grid of columns', async () => {
     const sheet = await toSprite(['A', 'B', 'C'], {}, { size: 64, columns: 2 })
     const info = readPng(sheet)
@@ -219,6 +238,43 @@ describe('toSprite', () => {
       await expect(toSprite(['A'], {}, { columns })).rejects.toThrow(RangeError)
     for (const gap of [-1, Number.NaN, 2048])
       await expect(toSprite(['A'], {}, { gap })).rejects.toThrow(RangeError)
+  })
+})
+
+describe('GIF palette', () => {
+  test('keeps a transparent entry for a clear pixel the sample skips', () => {
+    // 12 opaque 512 px frames: 3.1M pixels over the 2^21 sample, stride 2,
+    // so the one clear pixel at an odd offset is never sampled
+    const pixels = 512 * 512
+    const count = 12
+    const frame = (i: number) => {
+      const px = new Uint8Array(pixels * 4)
+      for (let p = 0; p < pixels; p++) {
+        px[p * 4] = (p * 7 + i) & 0xff
+        px[p * 4 + 1] = (p >> 3) & 0xff
+        px[p * 4 + 2] = (p >> 9) & 0xff
+        px[p * 4 + 3] = 255
+      }
+      if (i === 5) px[1001 * 4 + 3] = 0
+      return px
+    }
+    const { format, palette, transparentIndex } = paletteFor(
+      count,
+      pixels,
+      frame,
+    )
+    expect(format).toBe('rgba4444')
+    expect(transparentIndex).toBeGreaterThanOrEqual(0)
+    expect(palette[transparentIndex]![3]).toBe(0)
+    expect(palette.length).toBeLessThanOrEqual(256)
+  })
+
+  test('has no transparent entry when every pixel is opaque', () => {
+    const px = new Uint8Array(16 * 16 * 4).fill(200)
+    for (let a = 3; a < px.length; a += 4) px[a] = 255
+    const { format, transparentIndex } = paletteFor(1, 256, () => px)
+    expect(format).toBe('rgb565')
+    expect(transparentIndex).toBe(-1)
   })
 })
 
