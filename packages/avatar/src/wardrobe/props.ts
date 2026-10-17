@@ -41,10 +41,10 @@ const BOB = 4
 /** How far the coffee's steam rises above the prop's centre, mock units. */
 const RISE = 18
 // a prop may shrink this far to stay clear of the face in a tight frame
-const SHRINK = [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] as const
-// smaller still, tried beside the face before the prop goes over the brows:
-// a prop up there floats into the hat zone (the round semicircle in peek)
-const SMALLEST = [0.45, 0.4, 0.35] as const
+// the nearest a prop over the brows may sit to the centre line
+const OUT = 80
+const FLOOR = [1, 0.95, 0.9, 0.85, 0.8, 0.75] as const
+const BELOW = [0.7, 0.6, 0.5] as const
 // room kept around the eyes, brows and mouth
 const PAD = 4
 
@@ -144,10 +144,17 @@ function search(
   const mouthB = m.y + baseY + m.d * 2.5 + PAD + 6
   const cheek = sh.cheeks[1][1]
   const fallback: PropSpot = { x: PROP_AT.x, y: PROP_AT.y, k: 0.5 }
-  // beside the face at any scale first; over the brows (beside the crown)
-  // only as a last resort, since a hat may sit there
-  for (const overBrows of [false, true])
-    for (const k of overBrows ? SHRINK : [...SHRINK, ...SMALLEST]) {
+  // beside the face at full size down to the 0.75 floor first; then over
+  // the brows, as far out as the frame allows and so past the hats, still at
+  // the floor; only then beside the face or over the brows below the floor
+  const passes = [
+    [false, FLOOR],
+    [true, [...FLOOR].reverse()],
+    [false, BELOW],
+    [true, BELOW],
+  ] as const
+  for (const [overBrows, ks] of passes)
+    for (const k of ks) {
       const h = HALF * k
       const hy = h + BOB
       const up = RISE * UNIT * k + BOB
@@ -162,8 +169,12 @@ function search(
           rightmost(bound, y - lift - up, y - lift + hy, h),
         )
         const edge = 170 + halfWidthAt(sh, Math.min(ly, sh.bottom))
-        const x = Math.min(edge + h * 0.75, xMax)
+        // over the brows the prop goes as far out as the frame allows, past
+        // the widest hat, instead of hovering by the crown
+        const x = overBrows ? xMax : Math.min(edge + h * 0.75, xMax)
         if (!Number.isFinite(x)) continue
+        // over the brows only well out to the side, never above the head
+        if (overBrows && x < 170 + OUT) continue
         const left = x - h
         const top = y - hy
         const above = y + hy <= browT

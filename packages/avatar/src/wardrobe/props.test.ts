@@ -3,7 +3,7 @@ import { ACTIVITIES, type Activity } from '../activity'
 import { Live } from '../animate'
 import { draw, loopPhase, type Node } from '../draw'
 import { serialize, settle, toSvg } from '../svg'
-import { FACES, PROPS as PROP_LIST } from '../tables'
+import { ACCESSORIES, FACES, PROPS as PROP_LIST } from '../tables'
 import { bounds, mul, parseT } from '../test/bounds'
 import { fakeDom, motion } from '../test/dom'
 import { HELD_PROPS } from './props'
@@ -196,31 +196,41 @@ describe('placement', () => {
                 find(tree, 'wear.prop.book')!.attrs.transform!,
               )![1],
             )
-            // the one tight case: a round peek frame on the semicircle holds
-            // a small prop beside the face rather than float it into the
-            // hat zone over the brows
-            const tight =
-              !square && framing === 'peek' && shape === 'semicircle'
-            expect(k).toBeGreaterThanOrEqual(3.4 * (tight ? 0.35 : 0.75) - 0.01)
+            expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
           }
   })
 
-  test('the round semicircle never floats a prop over the brows', () => {
-    for (const name of ['Ada', 'Linh', 'Zed Okafor', 'Mira', 'Kofi'])
-      for (const spread of [-7, 0, 7]) {
-        const { who, pose, opts } = settle(name, {
-          prop: 'book',
-          size: 300,
-          shape: 'semicircle',
-          square: false,
-        } as any)
-        who.persona.spread = spread
-        const tree = draw(who, pose, opts)
-        const p = absBox(tree, 'wear.prop.book')
-        // beside the face, out past the right eye: over the brows it would
-        // sit in the hat zone, centred above the head
-        expect(p.x0).toBeGreaterThanOrEqual(absBox(tree, 'eye1').x1)
-      }
+  test('the round semicircle keeps its prop out of the hat zone', () => {
+    // the headphones' band spans the whole head, so its box is no zone
+    const hats = ACCESSORIES.headwear.filter(
+      (h) => h !== 'none' && h !== 'headphones',
+    )
+    for (const name of ['Ada', 'Mira'])
+      for (const spread of [-7, -3, 0, 3, 5, 7])
+        for (const hat of hats) {
+          const { who, pose, opts } = settle(name, {
+            prop: 'book',
+            headwear: hat,
+            size: 300,
+            shape: 'semicircle',
+            square: false,
+          } as any)
+          who.persona.spread = spread
+          const tree = draw(who, pose, opts)
+          const p = absBox(tree, 'wear.prop.book')
+          const k = Number(
+            /scale\(([\d.]+)\)$/.exec(
+              find(tree, 'wear.prop.book')!.attrs.transform!,
+            )![1],
+          )
+          expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
+          const h = find(tree, `wear.headwear.${hat}`)
+          if (!h) continue
+          const hb = absBox(tree, `wear.headwear.${hat}`)
+          const hit =
+            p.x0 < hb.x1 && hb.x0 < p.x1 && p.y0 < hb.y1 && hb.y0 < p.y1
+          expect(hit).toBe(false)
+        }
   })
 
   test('never covers the face, stays in the visible or round frame', () => {
