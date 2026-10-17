@@ -10,7 +10,14 @@ import {
   settle,
   toSvg,
 } from '@awflow/avatar/adapter'
-import { act, createRef, type ReactNode, StrictMode, useId } from 'react'
+import {
+  Activity,
+  act,
+  createRef,
+  type ReactNode,
+  StrictMode,
+  useId,
+} from 'react'
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import {
@@ -358,6 +365,9 @@ describe('client', () => {
 
   test('StrictMode: the double mount re-attaches cleanly', () => {
     const react = vi.spyOn(Live.prototype, 'react')
+    // bind() runs in every Live's constructor: its contexts are the Lives
+    const bind = vi.spyOn(Live.prototype as any, 'bind')
+    const destroy = vi.spyOn(Live.prototype, 'destroy')
     const ref = createRef<AvatarRef>()
     const view = show(
       <StrictMode>
@@ -373,7 +383,50 @@ describe('client', () => {
       </StrictMode>,
     )
     expect(view.svg()).toBe(svg)
+    // the double mount built two Lives and destroyed the first: one survives,
+    // and it is the handle's
+    const built = new Set(bind.mock.contexts)
+    const dead = new Set(destroy.mock.contexts)
+    const alive = [...built].filter((l) => !dead.has(l))
+    expect(built.size).toBe(2)
+    expect(alive).toEqual([(ref.current!.getHandle() as any).live])
   })
+
+  for (const animate of [false, true]) {
+    test(`Activity hide and show after a state change, animate=${animate}`, () => {
+      const errors = vi.spyOn(console, 'error')
+      const ref = createRef<AvatarRef>()
+      const at = (mode: 'visible' | 'hidden', expression: 'happy' | 'sad') => (
+        <Activity mode={mode}>
+          <Avatar
+            ref={ref}
+            name='Ada'
+            animate={animate}
+            expression={expression}
+          />
+        </Activity>
+      )
+      const view = show(at('visible', 'happy'))
+      const svg = view.svg()
+      view.render(at('visible', 'sad'))
+      view.render(at('hidden', 'sad'))
+      view.render(at('visible', 'sad'))
+      expect(view.svg()).toBe(svg)
+      expect(ref.current!.getHandle()).not.toBeNull()
+      // a state change while hidden lands once it shows again
+      view.render(at('hidden', 'happy'))
+      view.render(at('visible', 'happy'))
+      expect(view.svg()).toBe(svg)
+      // Activity leaves an empty style behind after display: none
+      expect(svg.getAttribute('style') ?? '').toBe('')
+      svg.removeAttribute('style')
+      if (!animate)
+        expect(canon(svg)).toBe(
+          tree(toSvg('Ada', { expression: 'happy', id: idOf(svg) })),
+        )
+      expect(errors).not.toHaveBeenCalled()
+    })
+  }
 
   test('unmount stops the rig', () => {
     const destroy = vi.spyOn(Live.prototype, 'destroy')

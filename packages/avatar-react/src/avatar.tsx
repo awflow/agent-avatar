@@ -135,9 +135,14 @@ function snapshot(o: MountOptions, gen: number): Snapshot {
   }
 }
 
+/** The state options last sent to the handle of snapshot `gen`. */
+type Applied = { gen: number; state: Partial<MountOptions> }
+
 type SvgProps = {
   snap: Snapshot
-  adopt: (handle: AvatarHandle) => () => void
+  /** What the handle of this snapshot was last set to, if anything. */
+  applied: { current: Applied | null }
+  adopt: (handle: AvatarHandle, name: string) => () => void
   className?: string
   style?: CSSProperties
 }
@@ -146,17 +151,30 @@ type SvgProps = {
  * One avatar's <svg>, for one identity. Its root attributes and children
  * come from a snapshot that never changes for this instance, so a re-render
  * (new className or style) leaves what the core drew alone.
+ *
+ * The effect can run again on the same svg (an <Activity> or a Suspense
+ * boundary hides then shows it, StrictMode). By then the core may have
+ * redrawn it for a later state, so attach() binds with that state, not the
+ * snapshot's.
  */
-const Svg = memo(function Svg({ snap, adopt, className, style }: SvgProps) {
+const Svg = memo(function Svg({
+  snap,
+  applied,
+  adopt,
+  className,
+  style,
+}: SvgProps) {
   const ref = useRef<SVGSVGElement>(null)
   useIsoLayoutEffect(() => {
-    const handle = attach(ref.current!, snap.o)
-    const release = adopt(handle)
+    const a = applied.current
+    const o = a && a.gen === snap.gen ? { ...snap.o, ...a.state } : snap.o
+    const handle = attach(ref.current!, o)
+    const release = adopt(handle, snap.o.name)
     return () => {
       release()
       handle.destroy()
     }
-  }, [snap, adopt])
+  }, [snap, applied, adopt])
   return createElement(
     'svg',
     { ...snap.root, ref, className, style },
@@ -187,14 +205,13 @@ export const Avatar = forwardRef<AvatarRef, AvatarProps>(function Avatar(
   const handle = useRef<AvatarHandle | null>(null)
   const voice = useRef<(() => number) | null>(null)
   const target = useRef<AvatarRef | AvatarHandle | Element | null>(null)
-  const name = useRef(o.name)
-  name.current = o.name
+  const applied = useRef<Applied | null>(null)
 
   const adopt = useMemo(
-    () => (h: AvatarHandle) => {
+    () => (h: AvatarHandle, name: string) => {
       if (voice.current) h.setVoice(voice.current)
       if (target.current) h.lookAt(resolve(target.current))
-      const leave = group?.registerMember(name.current, h)
+      const leave = group?.registerMember(name, h)
       handle.current = h
       return () => {
         leave?.()
@@ -204,19 +221,16 @@ export const Avatar = forwardRef<AvatarRef, AvatarProps>(function Avatar(
     [group],
   )
 
-  // state only, never identity: see the note at the top. The handle skips
-  // what did not change, and plays a reaction only on a new reactKey.
+  // state only, never identity: see the note at the top. The handle plays
+  // a reaction only on a new reactKey.
   const { expression, activity, gaze, ring, reaction, reactKey } = rest
+  const gazeKey = String(gaze)
+  const ringKey = JSON.stringify(ring ?? null)
   useIsoLayoutEffect(() => {
-    handle.current?.set({
-      expression,
-      activity,
-      gaze,
-      ring,
-      reaction,
-      reactKey,
-    })
-  })
+    const state = { expression, activity, gaze, ring, reaction, reactKey }
+    applied.current = { gen: current.gen, state }
+    handle.current?.set(state)
+  }, [current.gen, expression, activity, gazeKey, ringKey, reaction, reactKey])
 
   useImperativeHandle(
     ref,
@@ -242,6 +256,7 @@ export const Avatar = forwardRef<AvatarRef, AvatarProps>(function Avatar(
   return createElement(Svg, {
     key: current.gen,
     snap: current,
+    applied,
     adopt,
     className,
     style,
