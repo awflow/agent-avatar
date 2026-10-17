@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Work in `agentic-flow` on a branch from `Dev` (e.g. `feat/awflow-avatar`); merge locally into `Dev` when the plan is done and gates pass; one final PR per repo, no per-task PRs.
-- Until Plan 6 publishes, depend on the package with `"@awflow/avatar-svelte": "file:../awflow-agant-avatar/packages/avatar-svelte"` (and the core the same way); Task 7 swaps to the published version.
+- Until Plan 6 publishes, consume the packages as packed tarballs (verified in Plan 4's fix wave: `file:` folders do not resolve under Bun because of `workspace:` specifiers): in awflow-agant-avatar run `bun run build` then `bun pm pack` in `packages/avatar` and `packages/avatar-svelte`; copy the two `.tgz` files to `agentic-flow/vendor/awflow-avatar/`; depend on them with `"@awflow/avatar": "file:./vendor/awflow-avatar/<core>.tgz"` and `"@awflow/avatar-svelte": "file:./vendor/awflow-avatar/<svelte>.tgz"`, plus `"overrides": { "@awflow/avatar": "file:./vendor/awflow-avatar/<core>.tgz" }` so the adapter's dependency resolves to the same single copy (assert one realpath). Commit the tarballs on the branch; Task 7 removes them and swaps to the published version.
 - Gates before merge: `bun run test:unit -- --run` (web tests import from `vitest`), `bun run build`, and the extension builds; `bun run check` has ~655 pre-existing errors — compare counts, add none.
 - After adding UI strings run `bun run translate:extract` (never rely on the dev server to update catalogs; restore `.po` files from `Dev` if the dev server wiped them).
 - Never edit `src/lib/components/ui/**` (shadcn generated).
@@ -49,7 +49,7 @@
 
 - [ ] **Step 1: Write the failing tests:** each `moodToActivity` row; `motionToProps` table (lively/calm/off × reduced); `lookToOptions` for a pebble/headphones look equals `fromLegacy` output; rendering `AgentCharacter` at size 16 yields an `<svg>` whose `fx.` pool has exactly 3 nodes, all hidden (opacity 0) unless the agent waits for approval; at size 96 with `mood: 'waiting'` it contains the ask badge.
 - [ ] **Step 2:** Run `bun run test:unit -- --run src/lib/assistant/agents/__tests__/look.test.ts src/lib/components/agents/__tests__/AgentCharacter.svelte.test.ts`. Expected: FAIL.
-- [ ] **Step 3:** Add the `file:` dependencies, implement the mapping functions and the wrapper.
+- [ ] **Step 3:** Add the vendored tarball dependencies + `overrides` (Global Constraints), verify `@awflow/avatar` resolves to one realpath from the app and from the adapter, implement the mapping functions and the wrapper.
 - [ ] **Step 4:** Run the tests and `bun run build`. Expected: PASS / exit 0. Manually load the extension (or `bun run dev:web`) and check the agents page, a chat and a team thread render.
 - [ ] **Step 5:** Commit `feat(agents): draw characters with @awflow/avatar`.
 
@@ -136,6 +136,6 @@
 **Files:**
 - Modify: `agentic-flow/package.json`, `bun.lock`
 
-- [ ] **Step 1:** Replace the `file:` specifiers with `"@awflow/avatar": "^1.0.0"` and `"@awflow/avatar-svelte": "^1.0.0"`; `bun install`.
+- [ ] **Step 1:** Replace the vendored tarball specifiers and the `overrides` entry with `"@awflow/avatar": "^1.0.0"` and `"@awflow/avatar-svelte": "^1.0.0"`, delete `vendor/awflow-avatar/`; `bun install`.
 - [ ] **Step 2:** Run `bun run test:unit -- --run && bun run build`. Expected: PASS / exit 0.
 - [ ] **Step 3:** Commit `chore(deps): use published @awflow/avatar 1.0.0` on `Dev`.
