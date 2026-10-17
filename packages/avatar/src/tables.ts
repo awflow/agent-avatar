@@ -55,7 +55,7 @@ export type FaceGeom = {
   crown: { readonly poly: readonly Pt[]; readonly r: number }
 }
 
-export const FACES = {
+const FACES_V1 = {
   diamond: {
     body: { d: 'M170 20L320 170L170 320L20 170Z' },
     bottom: 320,
@@ -159,6 +159,24 @@ export const FACES = {
   },
 } as const satisfies Record<string, FaceGeom>
 
+/* The 11 faces appended for peek@2 share the circle's geometry until their
+ * own land (Task 5): the list order is what the hash indexes into. */
+const circleGeom = FACES_V1.circle
+export const FACES = {
+  ...FACES_V1,
+  cube: circleGeom,
+  drop: circleGeom,
+  gem: circleGeom,
+  cloud: circleGeom,
+  ghost: circleGeom,
+  peak: circleGeom,
+  blob: circleGeom,
+  capsule: circleGeom,
+  bean: circleGeom,
+  arch: circleGeom,
+  flower: circleGeom,
+} as const satisfies Record<string, FaceGeom>
+
 /**
  * Body inks, each with a deep partner at the same hue. The body fills the
  * face and the lids, the deep ink carries cheeks and trait. The first four
@@ -183,11 +201,21 @@ export const COLORS = {
 
 /** Discrete anatomy. Each part reads every channel its feature owns. */
 export const PARTS = {
-  eyes: ['oval', 'bead', 'ring'],
-  brows: ['arch', 'bar', 'wedge', 'dash'],
-  mouth: ['poly', 'round', 'line', 'box'],
-  cheeks: ['oval', 'dots', 'lines'],
-  trait: ['square', 'fin', 'ring', 'dot', 'peak'],
+  eyes: ['oval', 'bead', 'ring', 'pill', 'dot', 'spark'],
+  brows: ['arch', 'bar', 'wedge', 'dash', 'none'],
+  mouth: ['poly', 'round', 'line', 'box', 'cat', 'none'],
+  cheeks: ['oval', 'dots', 'lines', 'none'],
+  trait: ['square', 'fin', 'ring', 'dot', 'peak', 'none'],
+  motif: [
+    'plain',
+    'dots',
+    'stripes',
+    'waves',
+    'grid',
+    'speckle',
+    'glow',
+    'rays',
+  ],
 } as const
 
 // The bow's single warm accent, transcribed from the accessory sheet.
@@ -195,13 +223,37 @@ export const ACCESSORY_INK = { knot: '#E5412D' } as const
 
 /** Independent wardrobe slots. peek@1 picks none; callers can dress it. */
 export const ACCESSORIES = {
-  eyewear: ['none', 'glasses', 'sunglasses'],
-  headwear: ['none', 'bow', 'cap', 'sprout'],
-  neckwear: ['none', 'tie'],
+  eyewear: [
+    'none',
+    'glasses',
+    'sunglasses',
+    'monocle',
+    'visor',
+    'patch',
+    'cateye',
+  ],
+  headwear: [
+    'none',
+    'bow',
+    'cap',
+    'sprout',
+    'beanie',
+    'headphones',
+    'antenna',
+    'crown',
+    'wizard',
+    'party',
+    'halo',
+    'beret',
+    'chef',
+  ],
+  neckwear: ['none', 'tie', 'bowtie', 'scarf', 'necklace', 'badge'],
+  decor: ['none', 'freckles', 'mustache', 'bandaid', 'sticker'],
 } as const
 export type Eyewear = (typeof ACCESSORIES.eyewear)[number]
 export type Headwear = (typeof ACCESSORIES.headwear)[number]
 export type Neckwear = (typeof ACCESSORIES.neckwear)[number]
+export type Decor = (typeof ACCESSORIES.decor)[number]
 export type AccessorySlot = keyof typeof ACCESSORIES
 
 export type Face = keyof typeof FACES
@@ -212,6 +264,7 @@ export type Brows = (typeof PARTS.brows)[number]
 export type Mouth = (typeof PARTS.mouth)[number]
 export type Cheeks = (typeof PARTS.cheeks)[number]
 export type Trait = (typeof PARTS.trait)[number]
+export type Motif = (typeof PARTS.motif)[number]
 export type Axis = 'face' | 'color' | Part | AccessorySlot
 
 /** How much of each list a version may pick from. Append-only too. */
@@ -227,9 +280,25 @@ export const VERSIONS: Record<number, Record<Axis, number>> = {
     eyewear: 1,
     headwear: 1,
     neckwear: 1,
+    motif: 1,
+    decor: 1,
+  },
+  2: {
+    face: 15,
+    color: 12,
+    eyes: 6,
+    brows: 4,
+    mouth: 5,
+    cheeks: 3,
+    trait: 5,
+    motif: 7,
+    eyewear: 1,
+    headwear: 1,
+    neckwear: 1,
+    decor: 1,
   },
 }
-export const LATEST = 1
+export const LATEST = 2
 
 /* ---------- state: channels and the 11 expressions ---------- */
 

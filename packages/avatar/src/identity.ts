@@ -10,17 +10,20 @@
 
 import {
   ACCESSORIES,
+  type AccessorySlot,
   type Axis,
   type Brows,
   type Cheeks,
   COLORS,
   type Color,
+  type Decor,
   type Eyes,
   type Eyewear,
   FACES,
   type Face,
   type Headwear,
   LATEST,
+  type Motif,
   type Mouth,
   type Neckwear,
   PARTS,
@@ -81,6 +84,8 @@ export type Axes = {
   eyewear: Eyewear
   headwear: Headwear
   neckwear: Neckwear
+  motif: Motif
+  decor: Decor
 }
 
 export type Identity = Axes & {
@@ -108,12 +113,24 @@ export function seed(name: string, axis: string, version = LATEST) {
 
 export function identify(
   name: string,
-  { version = LATEST }: { version?: number } = {},
+  {
+    version = LATEST,
+    dress = false,
+  }: { version?: number; dress?: boolean } = {},
 ): Identity {
   const lengths = VERSIONS[version]
   if (!lengths) throw new Error(`peek@${version} does not exist`)
   const pick = <A extends Axis>(axis: A) =>
     LISTS[axis][seed(name, axis, version) % lengths[axis]] as Identity[A]
+  // dress (v2+): each slot rolls its own odds, then picks past 'none'
+  const wear = <A extends AccessorySlot>(axis: A, odds: number) => {
+    if (!dress || version < 2) return pick(axis)
+    const s = seed(name, `dress:${axis}`, version)
+    const list = LISTS[axis]
+    return (
+      s % 100 < odds ? list[1 + ((s >>> 8) % (list.length - 1))] : 'none'
+    ) as Identity[A]
+  }
 
   const rnd = mulberry32(seed(name, 'persona', version))
   const r = (a: number, b: number) =>
@@ -150,9 +167,11 @@ export function identify(
     mouth: pick('mouth'),
     cheeks: pick('cheeks'),
     trait: pick('trait'),
-    eyewear: pick('eyewear'),
-    headwear: pick('headwear'),
-    neckwear: pick('neckwear'),
+    eyewear: wear('eyewear', 25),
+    headwear: wear('headwear', 45),
+    neckwear: wear('neckwear', 20),
+    motif: pick('motif'),
+    decor: wear('decor', 20),
     persona,
   }
 }

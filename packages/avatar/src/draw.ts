@@ -802,7 +802,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
   }
-  if (who.eyewear !== 'none') {
+  // items past Peek's own draw nothing until their drawings land (Plan 3)
+  if (who.eyewear === 'glasses' || who.eyewear === 'sunglasses') {
     const lx = sh.eyes[0][0] - spread
     const rr = sh.eyes[1][0] + spread
     const ey = sh.eyes[0][1]
@@ -876,7 +877,11 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     }
     wardrobe.push(n('g', 'eyewear', {}, frames))
   }
-  if (who.headwear !== 'none') {
+  if (
+    who.headwear === 'bow' ||
+    who.headwear === 'cap' ||
+    who.headwear === 'sprout'
+  ) {
     // Reserve the side opposite the crest. The seat stays fixed through
     // expressions, so a moving crest never makes a hat switch sides.
     const side = who.trait === 'ring' || who.trait === 'dot' ? -1 : 1

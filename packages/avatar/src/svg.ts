@@ -19,12 +19,15 @@ import {
   COLORS,
   type Color,
   type Expression,
+  type Motif,
 } from './tables'
 import { deepOf, type Ink, parseHex, themeOf } from './themes'
 
 export type AvatarOptions = Omit<Partial<Axes>, 'color'> & {
   /** A palette slot, or any #rgb / #rrggbb hex for a custom body ink. */
   color?: Color | `#${string}`
+  /** Draw this motif; default the hash's, or plain on themes without motifs. */
+  motif?: Motif
   /** A registered theme name. Default soft (peek's palette). */
   theme?: string
   /** px. Drives the stroke ramp (thicker below 96) and the riso print. */
@@ -41,6 +44,8 @@ export type AvatarOptions = Omit<Partial<Axes>, 'color'> & {
   riso?: boolean
   /** Pin a style version. Default the latest. */
   version?: number
+  /** Let the name pick the wardrobe too (v2+). Default off. */
+  dress?: boolean
   /** Prefix for ids inside the SVG. Default derived from everything drawn,
    * so two different avatars inlined in one page never share defs. */
   id?: string
@@ -65,7 +70,7 @@ export function settle(
   o: AvatarOptions,
   live = false,
 ): { who: Identity; pose: Pose; opts: DrawOptions } {
-  const base = identify(name, { version: o.version })
+  const base = identify(name, { version: o.version, dress: o.dress })
   const theme = themeOf(o.theme)
   const hex = typeof o.color === 'string' ? parseHex(o.color) : null
   const ink: Ink | undefined = hex
@@ -87,6 +92,9 @@ export function settle(
     eyewear: wear(o, base, 'eyewear'),
     headwear: wear(o, base, 'headwear'),
     neckwear: wear(o, base, 'neckwear'),
+    // the theme decides whether the hashed motif is drawn at all
+    motif: o.motif ?? (theme.motifs ? base.motif : 'plain'),
+    decor: wear(o, base, 'decor'),
   }
   const pose = restPose(who, o.expression ?? 'normal', o.gaze)
   const look = {
@@ -101,13 +109,23 @@ export function settle(
     ...(theme.name === 'soft' ? {} : { theme: theme.name }),
     ...(ink ? { ink } : {}),
   }
-  // Keep the byte-level peek@1 contract for faces without accessories.
-  const { eyewear, headwear, neckwear, ...legacy } = who
-  const wardrobe =
-    eyewear !== 'none' || headwear !== 'none' || neckwear !== 'none'
+  // Keep the byte-level peek@1 contract: an axis at its v1 default (no
+  // wardrobe, plain motif, no decor) stays out of the hashed identity.
+  const hashed: Partial<Identity> = { ...who }
+  if (who.motif === 'plain') delete hashed.motif
+  if (who.decor === 'none') delete hashed.decor
+  if (
+    who.eyewear === 'none' &&
+    who.headwear === 'none' &&
+    who.neckwear === 'none'
+  ) {
+    delete hashed.eyewear
+    delete hashed.headwear
+    delete hashed.neckwear
+  }
   const id =
     o.id ??
-    `peek-${fnv1a(JSON.stringify([wardrobe ? who : legacy, pose, { ...look, ...extra }])).toString(36)}`
+    `${who.version >= 2 ? 'awf' : 'peek'}-${fnv1a(JSON.stringify([hashed, pose, { ...look, ...extra }])).toString(36)}`
   return {
     who,
     pose,

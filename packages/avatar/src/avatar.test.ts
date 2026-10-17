@@ -77,8 +77,10 @@ describe('axes', () => {
 
   test('overriding one axis changes only that axis', () => {
     const name = 'Grace Hopper'
-    const base = identify(name)
-    const before = flat(draw(...args(name, { expression: 'happy' })))
+    const base = identify(name, { version: 1 })
+    const before = flat(
+      draw(...args(name, { expression: 'happy', version: 1 })),
+    )
     const prefix = {
       eyes: 'eye',
       brows: 'brow',
@@ -86,10 +88,10 @@ describe('axes', () => {
       cheeks: 'cheek',
       trait: 'trait',
     }
-    for (const part of Object.keys(PARTS) as (keyof typeof PARTS)[]) {
+    for (const part of Object.keys(prefix) as (keyof typeof prefix)[]) {
       const other = PARTS[part].find((t) => t !== base[part])!
       const after = flat(
-        draw(...args(name, { [part]: other, expression: 'happy' })),
+        draw(...args(name, { [part]: other, expression: 'happy', version: 1 })),
       )
       const changed = [...new Set([...before.keys(), ...after.keys()])].filter(
         (k) => before.get(k) !== after.get(k),
@@ -97,7 +99,7 @@ describe('axes', () => {
       expect(changed.length).toBeGreaterThan(0)
       for (const k of changed) expect(k.startsWith(prefix[part])).toBe(true)
     }
-    const recolored = settle(name, { color: 'aqua' }).who
+    const recolored = settle(name, { color: 'aqua', version: 1 }).who
     expect({ ...recolored, color: base.color }).toEqual(base)
   })
 
@@ -402,14 +404,15 @@ describe('accessories', () => {
       node.key,
       ...node.children.flatMap(keys),
     ]
-    for (const face of Object.keys(FACES) as Face[]) {
-      for (const trait of PARTS.trait) {
-        for (const eyewear of ACCESSORIES.eyewear) {
-          for (const headwear of ACCESSORIES.headwear) {
-            for (const neckwear of ACCESSORIES.neckwear) {
+    // Peek's own lists: the peek@2 additions draw nothing yet (Plan 3)
+    for (const face of Object.keys(FACES).slice(0, 4) as Face[]) {
+      for (const trait of PARTS.trait.slice(0, 5)) {
+        for (const eyewear of ACCESSORIES.eyewear.slice(0, 3)) {
+          for (const headwear of ACCESSORIES.headwear.slice(0, 4)) {
+            for (const neckwear of ACCESSORIES.neckwear.slice(0, 2)) {
               const { who, opts } = settle(
                 'Linh',
-                { face, trait, eyewear, headwear, neckwear },
+                { face, trait, eyewear, headwear, neckwear, version: 1 },
                 true,
               )
               const reference = keys(draw(who, restPose(who, 'normal'), opts))

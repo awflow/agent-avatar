@@ -4,7 +4,7 @@ import { COLORS, EXPRESSIONS, type Expression } from './tables'
 import { defineTheme, parseHex, THEMES, themeOf } from './themes'
 
 const NAMES = ['Ada Lovelace', 'Linh', 'Đoàn', '東京']
-const idOf = (svg: string) => /id="(peek-[^"]*?)-f"/.exec(svg)?.[1]
+const idOf = (svg: string) => /id="((?:peek|awf)-[^"]*?)-f"/.exec(svg)?.[1]
 
 describe('themes', () => {
   test('soft theme keeps peek@1 bytes', () => {
