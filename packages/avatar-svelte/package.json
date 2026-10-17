@@ -23,7 +23,7 @@
   "scripts": {
     "dev": "vite",
     "build": "svelte-package -i src -o dist",
-    "prepack": "svelte-package -i src -o dist",
+    "prepack": "bun run build",
     "check-types": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run"
   },
