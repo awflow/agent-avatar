@@ -7,6 +7,8 @@ TypeScript. Packages: `packages/avatar` (`@awflow/avatar`, core),
 (`@awflow/avatar-react`), `packages/avatar-vue` (`@awflow/avatar-vue`),
 `packages/avatar-solid` (`@awflow/avatar-solid`),
 `packages/avatar-element` (`@awflow/avatar-element`),
+`packages/avatar-export` (`@awflow/avatar-export`, PNG/APNG/GIF/sprite
+rasterising; the only package with raster dependencies),
 `packages/typescript-config`. The core never imports a framework.
 
 `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it. Never replace
