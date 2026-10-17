@@ -26,7 +26,13 @@ import {
 } from './tables'
 import { type Ink, THEMES, type Theme } from './themes'
 import { WEAR, type WearCtx, type WearSlot } from './wardrobe/context'
-import { HELD_PROPS, type PropName, propSpot } from './wardrobe/props'
+import {
+  HELD_PROPS,
+  type PropBound,
+  type PropName,
+  propSpot,
+  swayed,
+} from './wardrobe/props'
 
 export { clamp, depth, seat, smooth } from './geom'
 
@@ -145,18 +151,6 @@ const RING_W = 12
  */
 export const tierOf = (px: number, lod = true): 0 | 1 | 2 =>
   !lod ? 2 : px < 24 ? 0 : px < 44 ? 1 : 2
-/**
- * A held prop's spot this frame: its resting spot moved with the body's
- * sideways sway, kept inside the frame's right edge.
- */
-const heldAt = (
-  spot: { x: number; y: number; k: number },
-  dx: number,
-  right: number,
-) => ({
-  ...spot,
-  x: Math.min(spot.x + dx, right - 15 * 3.4 * spot.k - 2),
-})
 // the sprout, drawn upward from where it is planted
 const STEM = 'M0 0Q3 -19 0 -36'
 const LEAF0 = 'M0 -33C-24 -30 -38 -52 -25 -53C-12 -54 -2 -43 0 -33Z'
@@ -1495,12 +1489,26 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // sparkle or a zzz still reads over it. Hidden below 44px (tier 2). With
   // no prop there is no layer at all, so peek@1's live tree holds; with one,
   // the layer is there at every size and a static tree prunes it when empty.
-  // It sits beside the body inside Peek's 340 frame; under full framing the
+  // It sits beside the body inside the visible frame; under full framing the
   // frame maps back through the framing transform into the group's space.
   const holds = !!who.prop && Object.hasOwn(HELD_PROPS, who.prop)
   const fullC = (top - HEADROOM + sh.bottom) / 2 + baseY
   const toLocal = (v: number, c: number) =>
     full ? (v - 170) / FULL_SCALE + c : v
+  // the visible frame (the viewBox), or the round frame's clip circle,
+  // mapped into the prop's space
+  const bound: PropBound = {
+    box: [
+      toLocal(VB[0], 170),
+      toLocal(VB[1], fullC),
+      toLocal(VB[0] + VB[2], 170),
+      toLocal(VB[1] + VB[3], fullC),
+    ],
+    circle: o.square
+      ? undefined
+      : [170, full ? fullC : 170, full ? 200 / FULL_SCALE : 200],
+    scale: full ? FULL_SCALE : 1,
+  }
   const propLayer = holds
     ? [
         n(
@@ -1510,21 +1518,11 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           tier >= 2
             ? HELD_PROPS[who.prop as PropName].draw({
                 ...ctx,
-                propAt: heldAt(
-                  propSpot(
-                    sh,
-                    baseY,
-                    spread,
-                    [
-                      toLocal(0, 170),
-                      toLocal(0, fullC),
-                      toLocal(340, 170),
-                      toLocal(340, fullC),
-                    ],
-                    full ? FULL_SCALE : 1,
-                  ),
+                propAt: swayed(
+                  propSpot(sh, baseY, spread, bound, 0.4 * R),
                   x,
-                  full ? toLocal(340, 170) : 340,
+                  ty - baseY,
+                  bound,
                 ),
               })
             : [],

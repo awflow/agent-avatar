@@ -11,7 +11,7 @@
  * prop out entirely.
  */
 
-import { clamp, halfWidthAt } from '../geom'
+import { halfWidthAt } from '../geom'
 import { el, type Node } from '../node'
 import type { FaceGeom } from '../tables'
 import type { WearCtx, WearDraw } from './context'
@@ -38,8 +38,10 @@ const UNIT = 3.4
 /** Half the prop's extent at full size, frame units, its rock included. */
 const HALF = 15 * UNIT
 const BOB = 4
+/** How far the coffee's steam rises above the prop's centre, mock units. */
+const RISE = 18
 // a prop may shrink this far to stay clear of the face in a tight frame
-const SHRINK = [1, 0.9, 0.8, 0.7, 0.6, 0.5] as const
+const SHRINK = [1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] as const
 // room kept around the eyes, brows and mouth
 const PAD = 4
 
@@ -47,22 +49,83 @@ const PAD = 4
 export type PropSpot = { x: number; y: number; k: number }
 
 /**
- * Where a held prop sits, in the space it is drawn in (frame space, or the
- * full-framing group's space): beside the body's right edge at or below the
- * cheek line, a little over the outline so it reads as held. When the frame
- * is too tight (a wide body in peek framing) it slides down and in, then
- * shrinks, so it never covers the eyes, the brows or the mouth and never
- * leaves `box`. Depends only on the face, the persona's eye spread and the
- * framing, so a live avatar's prop holds its spot frame to frame.
+ * What a prop must stay inside, in the space it is drawn in: the visible
+ * box, and for a round frame its clip circle `[cx, cy, r]`. `scale` is how
+ * many frame units one local unit makes (0.8 under full framing).
+ */
+export type PropBound = {
+  box: readonly [number, number, number, number]
+  circle?: readonly [number, number, number]
+  scale: number
+}
+
+/**
+ * The furthest right a prop's centre may sit with its box spanning
+ * `[top, bottom]` and half-width `h`, or -Infinity when no x fits.
+ */
+function rightmost(b: PropBound, top: number, bottom: number, h: number) {
+  const pad = 2 / b.scale
+  if (top < b.box[1] + pad || bottom > b.box[3] - pad) return -Infinity
+  let x = b.box[2] - h - pad
+  if (b.circle) {
+    const [cx, cy, r] = b.circle
+    const dy = Math.max(Math.abs(top - cy), Math.abs(bottom - cy))
+    const room = r - pad
+    if (dy >= room) return -Infinity
+    x = Math.min(x, cx + Math.sqrt(room * room - dy * dy) - h)
+  }
+  return x
+}
+
+/**
+ * Where a held prop sits, in the space it is drawn in: beside the body's
+ * right edge at or below the cheek line, a little over the outline so it
+ * reads as held. When the frame is too tight (a wide body in peek framing)
+ * it slides down and in, then up beside the eyes, then shrinks, so it never
+ * covers the eyes, the brows or the mouth and never leaves the bound (the
+ * visible frame, or a round frame's circle). Depends only on the face, the
+ * persona's eye spread and the framing, so a live avatar's prop holds its
+ * spot frame to frame; `lift` is how far an expression may raise the body,
+ * which the prop follows (see swayed).
  */
 export function propSpot(
   sh: FaceGeom,
   baseY: number,
   spread: number,
-  box: readonly [number, number, number, number],
-  scale = 1,
+  bound: PropBound,
+  lift = 0,
 ): PropSpot {
-  const [bx0, by0, bx1, by1] = box
+  // a live avatar asks every frame with the same inputs: search once
+  let memo = SPOTS.get(sh)
+  if (!memo) {
+    memo = new Map()
+    SPOTS.set(sh, memo)
+  }
+  const key = [
+    baseY,
+    spread,
+    ...bound.box,
+    ...(bound.circle ?? []),
+    bound.scale,
+    lift,
+  ].join()
+  const hit = memo.get(key)
+  if (hit) return hit
+  if (memo.size > 64) memo.clear()
+  const spot = search(sh, baseY, spread, bound, lift)
+  memo.set(key, spot)
+  return spot
+}
+
+const SPOTS = new WeakMap<FaceGeom, Map<string, PropSpot>>()
+
+function search(
+  sh: FaceGeom,
+  baseY: number,
+  spread: number,
+  bound: PropBound,
+  lift: number,
+): PropSpot {
   // the eyes and brows (everything above the eye's lowest edge), then the
   // mouth, in the same space; generous enough for a surprised face
   const [ex, ey] = sh.eyes[1]
@@ -71,34 +134,66 @@ export function propSpot(
     Math.max(ex - 170 + spread + sh.rx * 1.25, ex - 170 + spread + sh.brow.hw) +
     PAD
   const eyeB = ey + baseY + sh.ry * 1.25 + PAD
+  // above the brows, raised as far as a surprised face lifts them
+  const browT = sh.brow.y + baseY - sh.ry * 0.9 - 24 - PAD
   const m = sh.mouth
   const mouthR = m.x + m.w * 1.6 + PAD + 6
   const mouthB = m.y + baseY + m.d * 2.5 + PAD + 6
   const cheek = sh.cheeks[1][1]
-  const pad = 2 / scale
-  let last: PropSpot = { x: PROP_AT.x, y: PROP_AT.y, k: 1 }
-  for (const k of SHRINK) {
-    const h = HALF * k
-    const hy = h + BOB
-    const xMax = bx1 - h - pad
-    const yMax = by1 - hy - pad
-    // down from the cheek line first; up beside the eyes only when the
-    // face sits so low that nothing fits below it
-    for (let step = 0; step <= 32; step++) {
-      const ly = step <= 16 ? cheek + step * 8 : cheek - (step - 16) * 8
-      const y = Math.min(ly + baseY, yMax)
-      const edge = 170 + halfWidthAt(sh, Math.min(ly, sh.bottom))
-      const x = clamp(edge + h * 0.75, bx0 + h + pad, xMax)
-      last = { x, y, k }
-      if (y - hy < by0 + pad) continue
-      const left = x - h
-      const top = y - hy
-      const clearEyes = left >= eyeR || top >= eyeB
-      const clearMouth = left >= mouthR || top >= mouthB
-      if (clearEyes && clearMouth) return last
+  const fallback: PropSpot = { x: PROP_AT.x, y: PROP_AT.y, k: 0.5 }
+  // beside the face at any scale first; over the brows (beside the crown)
+  // only as a last resort, since a hat may sit there
+  for (const overBrows of [false, true])
+    for (const k of SHRINK) {
+      const h = HALF * k
+      const hy = h + BOB
+      const up = RISE * UNIT * k + BOB
+      // down from the cheek line first; up beside the eyes only when the
+      // face sits so low that nothing fits below it
+      for (let step = 0; step <= 50; step++) {
+        const ly = step <= 20 ? cheek + step * 8 : cheek - (step - 20) * 8
+        const y = ly + baseY
+        // it must also fit when an expression lifts the body (it follows)
+        const xMax = Math.min(
+          rightmost(bound, y - up, y + hy, h),
+          rightmost(bound, y - lift - up, y - lift + hy, h),
+        )
+        const edge = 170 + halfWidthAt(sh, Math.min(ly, sh.bottom))
+        const x = Math.min(edge + h * 0.75, xMax)
+        if (!Number.isFinite(x)) continue
+        const left = x - h
+        const top = y - hy
+        const above = y + hy <= browT
+        const clearEyes = left >= eyeR || top >= eyeB
+        const clearMouth = left >= mouthR || top >= mouthB
+        if (overBrows ? above : clearEyes && clearMouth) return { x, y, k }
+      }
     }
-  }
-  return last
+  return fallback
+}
+
+/**
+ * A prop's spot this frame: its resting spot carried by the body's offset
+ * from rest (a sway, a hop, a sink), so it keeps its place beside the face,
+ * then pulled back inside the bound.
+ */
+export function swayed(
+  spot: PropSpot,
+  dx: number,
+  dy: number,
+  bound: PropBound,
+): PropSpot {
+  const h = HALF * spot.k
+  const hy = h + BOB
+  const up = RISE * UNIT * spot.k + BOB
+  const pad = 2 / bound.scale
+  const y = Math.min(
+    Math.max(spot.y + dy, bound.box[1] + up + pad),
+    bound.box[3] - hy - pad,
+  )
+  const xMax = rightmost(bound, y - up, y + hy, h)
+  const x = spot.x + dx
+  return { ...spot, y, x: Number.isFinite(xMax) ? Math.min(x, xMax) : x }
 }
 
 const f3 = (v: number) => String(Math.round(v * 1000) / 1000)

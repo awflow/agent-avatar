@@ -176,43 +176,79 @@ describe('placement', () => {
     }
   })
 
-  test('never covers the eyes, brows or mouth, and stays in the frame', () => {
-    const bad: string[] = []
-    const hit = (a: Box, b: Box) =>
-      a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
-    for (const who0 of ['Ada', 'Linh', 'Zed Okafor'])
-      for (const shape of SHAPES)
-        for (const framing of ['peek', 'full'])
-          for (const expression of ['normal', 'surprised'])
-            for (const name of NAMES) {
-              const { who, pose, opts } = settle(who0, {
-                prop: name,
+  test('keeps at least 0.75 of the mock size on every shape and frame', () => {
+    for (const square of [true, false])
+      for (const framing of ['peek', 'full'])
+        for (const shape of SHAPES)
+          for (const name of ['Ada', 'Linh', 'Zed Okafor']) {
+            const { tree } = (() => {
+              const { who, pose, opts } = settle(name, {
+                prop: 'book',
                 size: 300,
                 shape,
                 framing,
-                expression,
-                brows: 'arch',
-                activity: name === 'coffee' ? 'idle' : 'thinking',
+                square,
               } as any)
-              for (const t of [0, 0.9, 1.7, 3.3]) {
-                const tree = draw(who, { ...pose, t }, opts)
-                const p = absBox(tree, `wear.prop.${name}`)
-                for (const k of ['eye0', 'eye1', 'brow0', 'brow1', 'mouth']) {
-                  const fb = absBox(tree, k)
-                  if (hit(p, fb))
-                    bad.push(
-                      `${who0}: ${name} on ${shape} ${framing} ${expression} t=${t} covers ${k}: ${JSON.stringify(p)} vs ${JSON.stringify(fb)}`,
-                    )
-                }
-                // inside Peek's 340 frame
-                if (p.x0 < 0 || p.y0 < 0 || p.x1 > 340 || p.y1 > 340)
-                  bad.push(
-                    `${who0}: ${name} on ${shape} ${framing} ${expression} t=${t} leaves the frame: ${JSON.stringify(p)}`,
-                  )
-              }
-            }
-    expect(bad).toEqual([])
+              return { tree: draw(who, pose, opts) }
+            })()
+            const k = Number(
+              /scale\(([\d.]+)\)$/.exec(
+                find(tree, 'wear.prop.book')!.attrs.transform!,
+              )![1],
+            )
+            expect(k).toBeGreaterThanOrEqual(3.4 * 0.75 - 0.01)
+          }
   })
+
+  test('never covers the face, stays in the visible or round frame', () => {
+    const bad: string[] = []
+    const hit = (a: Box, b: Box) =>
+      a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+    for (const square of [true, false])
+      for (const who0 of ['Ada', 'Linh', 'Zed Okafor'])
+        for (const shape of SHAPES)
+          for (const framing of ['peek', 'full'])
+            for (const expression of ['normal', 'surprised'])
+              for (const name of NAMES) {
+                const { who, pose, opts } = settle(who0, {
+                  prop: name,
+                  size: 300,
+                  shape,
+                  framing,
+                  expression,
+                  square,
+                  brows: 'arch',
+                  activity: name === 'coffee' ? 'idle' : 'thinking',
+                } as any)
+                for (const t of [0, 0.9, 1.7, 3.3]) {
+                  const tree = draw(who, { ...pose, t }, opts)
+                  const p = absBox(tree, `wear.prop.${name}`)
+                  const where = `${who0}: ${name} on ${shape} ${framing} ${expression} square=${square} t=${t}`
+                  for (const k of ['eye0', 'eye1', 'brow0', 'brow1', 'mouth']) {
+                    const fb = absBox(tree, k)
+                    if (hit(p, fb))
+                      bad.push(`${where} covers ${k}: ${JSON.stringify(p)}`)
+                  }
+                  // inside the visible frame (the viewBox), and inside a
+                  // round frame's clip circle; full framing is measured
+                  // through the framing transform, so the same bounds hold
+                  if (p.x0 < -30 || p.y0 < -30 || p.x1 > 370 || p.y1 > 370)
+                    bad.push(`${where} leaves the frame: ${JSON.stringify(p)}`)
+                  if (!square)
+                    for (const [cx, cy] of [
+                      [p.x0, p.y0],
+                      [p.x1, p.y0],
+                      [p.x0, p.y1],
+                      [p.x1, p.y1],
+                    ] as const)
+                      if (Math.hypot(cx - 170, cy - 170) > 200)
+                        bad.push(
+                          `${where} leaves the round frame: ${JSON.stringify(p)}`,
+                        )
+                }
+              }
+    expect(bad).toEqual([])
+  }, 60_000)
 
   test('outside the body group, under the fx layer', () => {
     for (const framing of ['peek', 'full'])
