@@ -197,6 +197,7 @@ export function settle(
   if (pose.fxP === 0) delete hp.fxP
   if (pose.voice === -1) delete hp.voice
   if (pose.winkR === 0) delete hp.winkR
+  if (!pose.swing) delete hp.swing
   const id =
     o.id ??
     `${who.version >= 2 ? 'awf' : 'peek'}-${fnv1a(JSON.stringify([hashed, hp, { ...look, ...extra }])).toString(36)}`

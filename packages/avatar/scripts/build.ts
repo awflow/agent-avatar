@@ -26,12 +26,15 @@ const declarations = Bun.spawn(['bunx', 'tsc', '-p', 'tsconfig.build.json'], {
 })
 if (await declarations.exited) process.exit(1)
 // Node's ESM resolver requires extensions in declaration imports too.
-for (const file of await readdir('dist')) {
+for (const file of await readdir('dist', { recursive: true })) {
   if (!file.endsWith('.d.ts')) continue
   const path = `dist/${file}`
   const source = await readFile(path, 'utf8')
   await writeFile(
     path,
-    source.replace(/(from\s+['"])(\.\/[^'"]+)(['"])/g, '$1$2.js$3'),
+    source.replace(
+      /(from\s+['"])(\.\.?\/[^'"]+?)(?<!\.js)(['"])/g,
+      '$1$2.js$3',
+    ),
   )
 }

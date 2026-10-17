@@ -11,7 +11,9 @@
 
 import { ACTIVITIES, type Activity, activityLoop, blend } from './activity'
 import { FX_KINDS, FX_POOL, FX_POOL_SMALL, type FxKind, fxShapes } from './fx'
+import { clamp, depth, RAD, seat, smooth } from './geom'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
+import { type Attrs, type Node, n, prune } from './node'
 import {
   ACCESSORY_INK,
   type Channel,
@@ -23,13 +25,11 @@ import {
   INK,
 } from './tables'
 import { type Ink, THEMES, type Theme } from './themes'
+import { WEAR, type WearCtx } from './wardrobe/context'
 
-export type Node = {
-  tag: string
-  key: string
-  attrs: Record<string, string>
-  children: Node[]
-}
+export { clamp, depth, seat, smooth } from './geom'
+
+export type { Node } from './node'
 
 // perceived lightness of a #rrggbb fill, 0..1
 const luma = (hex: string) => {
@@ -76,6 +76,11 @@ export type Pose = Channels & {
   fxP: number
   /** 0..1 mouth open from lip-sync, -1 for none. */
   voice: number
+  /**
+   * Per-wearable swing angles in degrees, for the slots whose items declare
+   * their own spring. Absent by default; a slot left out reads `wob`.
+   */
+  swing?: Partial<Record<'headwear' | 'neckwear' | 'trait', number>>
 }
 
 export type DrawOptions = {
@@ -117,17 +122,10 @@ export const VB = [-30, -30, 400, 400] as const
 const FLOOR = 370
 const THING: Gaze = [330, 20]
 
-export const clamp = (v: number, a: number, b: number) =>
-  v < a ? a : v > b ? b : v
-export const smooth = (a: number, b: number, v: number) => {
-  const t = clamp((v - a) / (b - a), 0, 1)
-  return t * t * (3 - 2 * t)
-}
 const f2 = (v: number) => String(Math.round(v * 100) / 100)
 const f3 = (v: number) => String(Math.round(v * 1000) / 1000)
 const strokeFor = (px: number) =>
   px >= 96 ? 1 : px >= 56 ? 1.25 : px >= 40 ? 1.6 : px >= 30 ? 2 : 2.4
-const RAD = Math.PI / 180
 // hat room above the crown when the whole body is framed
 const HEADROOM = 48
 const FULL_SCALE = 0.8
@@ -209,77 +207,6 @@ export function restPose(
   return pose
 }
 
-/**
- * A point on the crown outline grown by `d`, reached by walking `u` along it
- * from the top (where the outward normal points straight up); u > 0 walks
- * right. Returns the point and the normal's bearing in degrees.
- */
-export function seat(
-  crown: FaceGeom['crown'],
-  d: number,
-  u: number,
-): { x: number; y: number; a: number } {
-  const R = Math.max(0, crown.r + d)
-  const at = ([x, y]: readonly [number, number], b: number) => ({
-    x: x + R * Math.sin(b),
-    y: y - R * Math.cos(b),
-    a: b / RAD,
-  })
-  const P = crown.poly
-  if (P.length === 1) return at(P[0]!, R ? u / R : 0)
-  const n = P.length
-  const dir = u >= 0 ? 1 : -1
-  let left = Math.abs(u)
-  let i = 0
-  let b = 0
-  for (let step = 0; step < n; step++) {
-    const j = (i + dir + n) % n
-    const [x0, y0] = P[i]!
-    const [x1, y1] = P[j]!
-    const ex = x1 - x0
-    const ey = y1 - y0
-    const L = Math.hypot(ex, ey)
-    const nx = (dir * ey) / L
-    const ny = (-dir * ex) / L
-    const be = Math.atan2(nx, -ny)
-    let db = be - b
-    while (dir * db < 0) db += dir * 2 * Math.PI
-    const arc = R * Math.abs(db)
-    if (left <= arc) return at(P[i]!, R ? b + (dir * left) / R : b)
-    left -= arc
-    if (left <= L)
-      return {
-        x: x0 + (ex / L) * left + R * nx,
-        y: y0 + (ey / L) * left + R * ny,
-        a: be / RAD,
-      }
-    left -= L
-    i = j
-    b = be
-  }
-  return at(P[i]!, b)
-}
-
-/** Signed distance from a point to the crown outline, negative inside. */
-export function depth(crown: FaceGeom['crown'], x: number, y: number) {
-  const P = crown.poly
-  if (P.length === 1) return Math.hypot(x - P[0]![0], y - P[0]![1]) - crown.r
-  let out = -Infinity
-  let near = Infinity
-  for (let i = 0; i < P.length; i++) {
-    const [ax, ay] = P[i]!
-    const [bx, by] = P[(i + 1) % P.length]!
-    const ex = bx - ax
-    const ey = by - ay
-    const L2 = ex * ex + ey * ey
-    const L = Math.sqrt(L2)
-    out = Math.max(out, ((x - ax) * ey - (y - ay) * ex) / L)
-    const t = clamp(((x - ax) * ex + (y - ay) * ey) / L2, 0, 1)
-    near = Math.min(near, Math.hypot(x - ax - t * ex, y - ay - t * ey))
-  }
-  return (out <= 0 ? out : near) - crown.r
-}
-
 /*
  * The ring is worn at one o'clock, 158 x 35deg along the crown from the top.
  * On a low or narrow crown that spot sits on the brow's outer end, so the
@@ -301,24 +228,6 @@ export function ringWalk(sh: FaceGeom): { rest: number; min: number } {
     if (s.x > ex ? Math.hypot(dx, dy) > 27 : s.y < top - 27) break
   }
   return u > RING_U ? { rest: u + 20, min: u } : { rest: u, min: -Infinity }
-}
-
-type Attrs = Record<string, string | number | false | undefined>
-function n(tag: string, key: string, attrs: Attrs, children: Node[] = []) {
-  const out: Record<string, string> = {}
-  for (const k in attrs) {
-    const v = attrs[k]
-    if (v !== undefined && v !== false) out[k] = String(v)
-  }
-  return { tag, key, attrs: out, children }
-}
-
-/** Drops what cannot be seen: opacity 0, then groups left empty. */
-function prune(node: Node): Node | null {
-  if (node.attrs.opacity === '0') return null
-  const children = node.children.map(prune).filter((c) => c !== null)
-  if (node.tag === 'g' && children.length === 0) return null
-  return { ...node, children }
 }
 
 /*
@@ -692,6 +601,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const B = sh.bottom
   const ty = baseY - alt * R
   const sc = (v: number) => Math.round(v * 100000) / 100000
+  const bodyTransform = `translate(${f2(x)} ${f2(ty)}) rotate(${f2(rot)} 170 ${B}) translate(170 ${B}) scale(${sc(sx)} ${sc(sy)}) translate(-170 ${-B})`
   const bodyNode =
     'd' in sh.body
       ? n('path', 'body', {
@@ -1229,14 +1139,14 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const wardrobe: Node[] = []
   // strokes follow the same ramp as the face, capped so small hats stay hats
   const w = (px: number) => f2(px * Math.min(st, 1.6))
+  // ink lines follow the theme's ink; soft's is INK.ink, so peek@1 holds
   const line = {
     fill: 'none',
-    stroke: INK.ink,
+    stroke: inkC,
     'stroke-width': w(5.25),
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
   }
-  // items past Peek's own draw nothing until their drawings land (Plan 3)
   if (who.eyewear === 'glasses' || who.eyewear === 'sunglasses') {
     const lx = sh.eyes[0][0] - spread
     const rr = sh.eyes[1][0] + spread
@@ -1287,8 +1197,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         frames.push(
           n('path', key, {
             d: `M${f2(cx - lensX)} ${f2(top)}H${f2(cx + lensX)}V${f2(top + h * 0.55)}Q${f2(cx + lensX)} ${f2(top + h)} ${f2(cx)} ${f2(top + h)}Q${f2(cx - lensX)} ${f2(top + h)} ${f2(cx - lensX)} ${f2(top + h * 0.55)}Z`,
-            fill: INK.ink,
-            stroke: INK.ink,
+            fill: inkC,
+            stroke: inkC,
             'stroke-width': w(3),
             'stroke-linejoin': 'round',
           }),
@@ -1358,7 +1268,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           cx: 0,
           cy: -40,
           r: 3.5,
-          fill: INK.ink,
+          fill: inkC,
         }),
       )
     } else if (sprout) {
@@ -1392,7 +1302,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       parts.push(
         n('path', 'headwear.wings', {
           d: 'M-3 0C-13 -16 -28 -23 -29 -10C-31 2 -26 19 -16 13L-3 4L3 4L16 13C26 19 31 2 29 -10C28 -23 13 -16 3 0Z',
-          fill: INK.ink,
+          fill: inkC,
           // the same halo, painted under the fill
           stroke: fill,
           'stroke-width': w(6),
@@ -1419,6 +1329,23 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       ),
     )
   }
+  // everything past Peek's own items: one drawing per slot from the registry
+  const worn = WEAR.headwear[who.headwear]
+  if (worn) {
+    const ctx: WearCtx = {
+      sh,
+      who,
+      pose,
+      theme: T,
+      ink: slot,
+      g,
+      bodyTransform,
+      stroke: st,
+      id,
+      size: o.size,
+    }
+    wardrobe.push(...worn.draw(ctx))
+  }
   if (who.neckwear === 'tie') {
     // The knot follows the mouth's lowest edge, including its skew. The
     // floor clips the blade, just as it clips the creature itself.
@@ -1430,7 +1357,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         'neckwear',
         {
           transform: `translate(${m.x} ${f2(m.y + g('my') + bottom + 8)})`,
-          fill: INK.ink,
+          fill: inkC,
         },
         [
           n('path', 'neckwear.knot', {
@@ -1451,7 +1378,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     'g',
     'av',
     {
-      transform: `translate(${f2(x)} ${f2(ty)}) rotate(${f2(rot)} 170 ${B}) translate(170 ${B}) scale(${sc(sx)} ${sc(sy)}) translate(-170 ${-B})`,
+      transform: bodyTransform,
       filter: dim > 0.01 ? `url(#${id}-dim)` : undefined,
     },
     [

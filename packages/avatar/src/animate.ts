@@ -34,7 +34,7 @@ import {
   thingGaze,
   VB,
 } from './draw'
-import { type Swing, stepSwing } from './physics'
+import { type Swing, type SwingSpec, stepSwing } from './physics'
 import { REACTIONS, type Reaction, reactionOf } from './reactions'
 import {
   type Channel,
@@ -44,6 +44,7 @@ import {
   GROUPS,
   type Group,
 } from './tables'
+import { type SwingSlot, springsOf } from './wardrobe/context'
 
 type Spring = [omega: number, zeta: number]
 type KeyValue = number | ((v: number) => number)
@@ -371,6 +372,12 @@ export class Live {
   private lookThing: boolean
   private lag = { y: 0, v: 0 }
   private swing: Swing = { angle: 0, vel: 0 }
+  // one spring per wardrobe slot whose item declares physics, found once
+  // from the identity; the trait and Peek's sprout ride `swing` above
+  private swings: Partial<Record<SwingSlot, Swing>> = {}
+  private specs: [SwingSlot, SwingSpec][] = []
+  // the slot angles handed to draw(), one mutable object per avatar
+  private slotAngles: Partial<Record<SwingSlot, number>> = {}
   // the body's last position and velocity, for its acceleration
   private motion: { p: number[]; v: number[] } | null = null
   private fixed: Gaze | null = null
@@ -401,6 +408,8 @@ export class Live {
     this.state = expression
     this.activity = activityOf(activity)
     this.phase = loopPhase(who.key)
+    this.specs = Object.entries(springsOf(who)) as [SwingSlot, SwingSpec][]
+    for (const [slot] of this.specs) this.swings[slot] = { angle: 0, vel: 0 }
     this.bind(tree, svg)
     this.setGaze(gaze)
     const start = restPose(who, expression, this.gaze(), this.activity)
@@ -713,6 +722,7 @@ export class Live {
     this.fxP = 0
     this.voice = -1
     this.swing = { angle: 0, vel: 0 }
+    for (const [slot] of this.specs) this.swings[slot] = { angle: 0, vel: 0 }
     this.motion = null
     this.paint()
   }
@@ -942,15 +952,15 @@ export class Live {
     if (this.reduced) this.motion = null
     else if (m && dt > 0) {
       const v = p.map((q, i) => (q - m.p[i]!) / dt)
-      this.swing = stepSwing(
-        this.swing,
-        {
-          x: (v[0]! - m.v[0]!) / dt,
-          y: (v[1]! - m.v[1]!) / dt,
-          rot: (v[2]! - m.v[2]!) / dt,
-        },
-        dt,
-      )
+      const accel = {
+        x: (v[0]! - m.v[0]!) / dt,
+        y: (v[1]! - m.v[1]!) / dt,
+        rot: (v[2]! - m.v[2]!) / dt,
+      }
+      this.swing = stepSwing(this.swing, accel, dt)
+      // every declared spring feels the same body acceleration
+      for (const [slot, spec] of this.specs)
+        this.swings[slot] = stepSwing(this.swings[slot]!, accel, dt, spec)
       this.motion = { p, v }
     } else this.motion = { p, v: [0, 0, 0] }
 
@@ -972,6 +982,11 @@ export class Live {
       voice: this.reduced ? -1 : this.voice,
     } as Pose
     for (const c of CHANNELS) pose[c] = this.val[c] + this.out[c]
+    if (this.specs.length) {
+      for (const [slot] of this.specs)
+        this.slotAngles[slot] = this.reduced ? 0 : this.swings[slot]!.angle
+      pose.swing = this.slotAngles
+    }
     pose.lag = this.reduced
       ? 0
       : clamp((this.lag.y + pose.alt * R) * 0.4, -16, 16)
