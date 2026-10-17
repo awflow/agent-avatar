@@ -31,6 +31,8 @@ Light DOM, no framework. Attributes are the options: `name`, `size`, `theme`,
   `<awf-avatar>` shows as a fallback until the avatar mounts (it needs a
   `name`); it is only cleared once an svg has been rendered.
 - Invalid values are ignored and the previous value stays.
+- Each element gets its own SVG ids (`awf-e1`, `awf-e2`..., `peek-` at
+  version 1), so two identical avatars on one page never share defs.
 
 Methods: `react(name)`, `pulse(strength?)`, `setVoice(fn | null)`,
 `lookAt(target)` (target may be another `<awf-avatar>`, followed as it mounts, moves or remounts), and `handle`.

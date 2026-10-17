@@ -222,6 +222,51 @@ describe('attribute parsing', () => {
   })
 })
 
+describe('per-element ids', () => {
+  const ids = (svg: Element) =>
+    Array.from(svg.querySelectorAll('[id]'), (el) => el.id)
+  const refs = (svg: Element): string[] =>
+    Array.from(svg.querySelectorAll('*')).flatMap((el) =>
+      Array.from(el.attributes).flatMap((a) =>
+        Array.from(a.value.matchAll(/url\(#([^)]+)\)/g), (m) => m[1]!),
+      ),
+    )
+  const prefix = (svg: Element) => {
+    const id = svg.querySelector('[id]')!.id
+    return id.slice(0, id.lastIndexOf('-'))
+  }
+
+  it('two identical animated avatars never share an id or a url(#…)', () => {
+    const host = make(
+      '<awf-avatar name="Ada" animate></awf-avatar><awf-avatar name="Ada" animate></awf-avatar>',
+    )
+    const a = avatar(host, 0).querySelector('svg')!
+    const b = avatar(host, 1).querySelector('svg')!
+    expect(prefix(a)).not.toBe(prefix(b))
+    expect(ids(a).filter((id) => ids(b).includes(id))).toEqual([])
+    for (const svg of [a, b]) {
+      expect(refs(svg).length).toBeGreaterThan(0)
+      for (const r of refs(svg)) {
+        expect(ids(svg)).toContain(r)
+        expect(svg.contains(document.getElementById(r))).toBe(true)
+      }
+    }
+  })
+
+  it('carries the version prefix and keeps its id across rebuilds', () => {
+    const host = make('<awf-avatar name="Ada" version="1"></awf-avatar>')
+    const el = avatar(host)
+    const first = prefix(el.querySelector('svg')!)
+    expect(first).toMatch(/^peek-/)
+    el.setAttribute('version', '2')
+    const second = prefix(el.querySelector('svg')!)
+    expect(second).toMatch(/^awf-/)
+    expect(second.slice(4)).toBe(first.slice(5))
+    el.setAttribute('name', 'Linh')
+    expect(prefix(el.querySelector('svg')!)).toBe(second)
+  })
+})
+
 describe('methods', () => {
   it('delegates to the handle', () => {
     const host = make('<awf-avatar name="Ada" animate></awf-avatar>')
@@ -236,6 +281,32 @@ describe('methods', () => {
     expect(react).toHaveBeenCalledWith('nod')
     expect(pulse).toHaveBeenCalledWith(0.5)
     expect(voice).toHaveBeenCalledWith(null)
+  })
+
+  it('a reactKey with an identity change plays on the new svg', () => {
+    const react = vi.spyOn(Live.prototype, 'react')
+    const host = make(
+      '<awf-avatar name="Ada" animate reaction="nod"></awf-avatar>',
+    )
+    const el = avatar(host) as El & { reactKey: unknown }
+    el.reactKey = 0
+    react.mockClear()
+    const before = el.handle!.element
+    // the element sends each change on its own: name, then key
+    el.setAttribute('name', 'Linh')
+    el.reactKey = 1
+    const live = (el.handle as unknown as { live: Live }).live
+    expect(el.handle!.element).not.toBe(before)
+    expect(react).toHaveBeenCalledTimes(1)
+    expect(react.mock.contexts[0]).toBe(live)
+    // and in one patch, the core plays it on the rebuilt svg's Live
+    el.handle!.set({ name: 'Grace', reactKey: 2 } as never)
+    expect(react).toHaveBeenCalledTimes(2)
+    expect(react.mock.contexts[1]).toBe(
+      (el.handle as unknown as { live: Live }).live,
+    )
+    expect(react.mock.contexts[1]).not.toBe(live)
+    react.mockRestore()
   })
 
   it('lookAt resolves another avatar element to its handle', () => {
@@ -390,8 +461,13 @@ describe('upgrade and fallbacks', () => {
     ref.setAttribute('gaze', '0.5,0')
     ref.setAttribute('ring', '{"color":"#123456"}')
     document.body.appendChild(ref)
-    expect(early.querySelector('svg')!.outerHTML).toBe(
-      ref.querySelector('svg')!.outerHTML,
+    // the same markup but for each element's own id prefix
+    const bare = (svg: Element) => {
+      const id = svg.querySelector('[id]')!.id
+      return svg.outerHTML.replaceAll(id.slice(0, id.lastIndexOf('-')), 'ID')
+    }
+    expect(bare(early.querySelector('svg')!)).toBe(
+      bare(ref.querySelector('svg')!),
     )
     expect(early.getAttribute('ring')).toBeNull()
     expect(early.querySelector('svg')).toBeTruthy()

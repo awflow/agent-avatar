@@ -9,6 +9,7 @@
  * The classes are built by a factory so that nothing touches HTMLElement
  * when the module is imported in Node.
  */
+import { LATEST } from '@awflow/avatar'
 import {
   type AvatarHandle,
   type MountOptions,
@@ -23,6 +24,17 @@ const LEAVE = Symbol.for('awflow.avatar.element.leave')
 const GROUP = Symbol.for('awflow.avatar.element.group')
 const NOTIFY = Symbol.for('awflow.avatar.element.notify')
 const AIM = Symbol.for('awflow.avatar.element.aim')
+
+// every element gets its own svg ids: two identical avatars on one page
+// never share a clip path or gradient
+let serial = 0
+
+/* the svg id prefix for element number `n`: `peek-` at version 1, `awf-`
+ * from version 2, as the core's generated ids */
+function domId(n: number, version: unknown): string {
+  const v = typeof version === 'number' ? version : LATEST
+  return `${v >= 2 ? 'awf' : 'peek'}-e${n}`
+}
 
 /* an avatar element whose gaze follows another's handle */
 type Watcher = { [AIM](): void }
@@ -87,6 +99,7 @@ export function createElements(): {
     private leaveGroup: (() => void) | null = null
     private lookTarget: AwfAvatarElement | AvatarHandle | Element | null = null
     private rendered = false
+    private readonly serial = ++serial
     readonly [NOTIFY] = new Set<Watcher>()
 
     constructor() {
@@ -146,9 +159,14 @@ export function createElements(): {
       this.apply({ [p.key]: p.value })
     }
 
-    private apply(patch: Record<string, unknown>): void {
-      Object.assign(this.opts, patch)
+    private apply(input: Record<string, unknown>): void {
+      Object.assign(this.opts, input)
       if (!this.isConnected) return
+      // a new version may change the id prefix
+      const patch =
+        'version' in input
+          ? { ...input, id: domId(this.serial, this.opts.version) }
+          : input
       if (patch.name !== undefined || this.opts.name === undefined) {
         // the name is the avatar's identity and its group key
         if (patch.name === undefined) {
@@ -174,7 +192,10 @@ export function createElements(): {
         this.unmount()
         return
       }
-      this.mounted = mount(this, this.opts as MountOptions)
+      this.mounted = mount(this, {
+        ...this.opts,
+        id: domId(this.serial, this.opts.version),
+      } as MountOptions)
       this.rendered = true
       this[AIM]()
       this[JOIN]()

@@ -27,6 +27,12 @@ const liveSvg = (name: string, opts: Parameters<typeof settle>[1]) => {
   return serialize(draw(who, pose, d))
 }
 
+/* the id prefix an element's svg carries: its defs ids minus suffix */
+function idOf(svg: Element): string {
+  const id = svg.querySelector('[id]')!.id
+  return id.slice(0, id.lastIndexOf('-'))
+}
+
 /* options as the attributes a page author would write */
 function element(name: string, opts: object, animate: boolean): Element {
   const el = document.createElement('awf-avatar')
@@ -47,13 +53,15 @@ describe('mounted markup is the core tree', () => {
     it(`static ${name} ${JSON.stringify(opts)}`, () => {
       const el = element(name, opts, false)
       expect(el.querySelectorAll('svg')).toHaveLength(1)
-      expect(canon(el.querySelector('svg')!)).toBe(tree(toSvg(name, opts)))
+      const svg = el.querySelector('svg')!
+      expect(canon(svg)).toBe(tree(toSvg(name, { ...opts, id: idOf(svg) })))
     })
 
     it(`animated ${name} ${JSON.stringify(opts)}`, () => {
       const el = element(name, opts, true)
       expect(el.querySelectorAll('svg')).toHaveLength(1)
-      expect(canon(el.querySelector('svg')!)).toBe(tree(liveSvg(name, opts)))
+      const svg = el.querySelector('svg')!
+      expect(canon(svg)).toBe(tree(liveSvg(name, { ...opts, id: idOf(svg) })))
     })
   }
 })
