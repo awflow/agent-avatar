@@ -218,33 +218,23 @@ describe('wardrobe z-order', () => {
   }
 
   test('headphones, glasses, a scarf and the after-body layers', () => {
-    const had = WEAR.neckwear.scarf
-    WEAR.neckwear.scarf = {
-      draw: () => [
-        { tag: 'g', key: 'wear.neckwear.scarf', attrs: {}, children: [] },
-      ],
-    }
-    try {
-      const tree = live('glasses', {
-        headwear: 'headphones',
-        neckwear: 'scarf',
-        brows: 'arch',
-      })
-      ascending(
-        order(tree, [
-          'eye0',
-          'brow0',
-          'eyewear',
-          'wear.headwear.headphones',
-          'wear.neckwear.scarf',
-          ...AFTER_BODY,
-        ]),
-      )
-      outside(tree)
-    } finally {
-      if (had) WEAR.neckwear.scarf = had
-      else delete WEAR.neckwear.scarf
-    }
+    const tree = live('glasses', {
+      headwear: 'headphones',
+      neckwear: 'scarf',
+      brows: 'arch',
+    })
+    ascending(
+      order(tree, [
+        'eye0',
+        'brow0',
+        'eyewear',
+        'wear.headwear.headphones',
+        'wear.neckwear.scarf',
+        'wear.neckwear.scarf.tail',
+        ...AFTER_BODY,
+      ]),
+    )
+    outside(tree)
   })
 
   test('new eyewear sits under Peek headwear, Peek neckwear on top', () => {

@@ -1163,10 +1163,15 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     id,
     size: o.size,
   }
-  const wear = (kind: WearSlot, name: string) => {
+  const wearOf = (kind: WearSlot, name: string) => {
     const item = Object.hasOwn(WEAR[kind], name) ? WEAR[kind][name] : undefined
-    if (item) wardrobe.push(...item.draw(ctx))
+    return item ? item.draw(ctx) : []
   }
+  const wear = (kind: WearSlot, name: string) => {
+    wardrobe.push(...wearOf(kind, name))
+  }
+  // the face decoration paints over the cheeks and the mouth, under eyewear
+  const decor = wearOf('decor', who.decor)
   if (who.eyewear === 'glasses' || who.eyewear === 'sunglasses') {
     const lx = sh.eyes[0][0] - spread
     const rr = sh.eyes[1][0] + spread
@@ -1414,7 +1419,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         [
           ...eyes,
           ...(tier >= 2 ? brows : []),
-          ...(tier >= 1 ? [...mouths, ...wardrobe] : []),
+          ...(tier >= 1 ? [...mouths, ...decor, ...wardrobe] : []),
         ],
       ),
     ],

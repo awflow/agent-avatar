@@ -369,33 +369,26 @@ describe('per-wearable springs', () => {
   })
 
   test('antenna and scarf swing apart after a hop', () => {
-    // the scarf's drawing lands with the neckwear; its spring plugs in here
-    const had = WEAR.neckwear.scarf
-    WEAR.neckwear.scarf = {
-      draw: () => [],
-      physics: { stiffness: 9, damping: 0.2, maxSwing: 20 },
+    expect(springsOf({ headwear: 'antenna', neckwear: 'scarf' })).toEqual({
+      headwear: HEADWEAR.antenna.physics,
+      neckwear: WEAR.neckwear.scarf!.physics,
+    })
+    const { live, rig, count } = mount('Linh', {
+      headwear: 'antenna',
+      neckwear: 'scarf',
+    })
+    const n = count()
+    live.react('hop')
+    let apart = 0
+    for (let i = 0; i < 90; i++) {
+      live.step(1 / 60)
+      const s = rig.swings
+      apart = Math.max(apart, Math.abs(s.headwear.angle - s.neckwear.angle))
     }
-    try {
-      const { live, rig, count } = mount('Linh', {
-        headwear: 'antenna',
-        neckwear: 'scarf',
-      })
-      const n = count()
-      live.react('hop')
-      let apart = 0
-      for (let i = 0; i < 90; i++) {
-        live.step(1 / 60)
-        const s = rig.swings
-        apart = Math.max(apart, Math.abs(s.headwear.angle - s.neckwear.angle))
-      }
-      expect(apart).toBeGreaterThan(0.05)
-      expect(rig.swings.trait).toBe(undefined)
-      expect(count()).toBe(n)
-      live.destroy()
-    } finally {
-      if (had) WEAR.neckwear.scarf = had
-      else delete WEAR.neckwear.scarf
-    }
+    expect(apart).toBeGreaterThan(0.05)
+    expect(rig.swings.trait).toBe(undefined)
+    expect(count()).toBe(n)
+    live.destroy()
   })
 
   /** Binds a Live and keeps the tree of its last paint. */

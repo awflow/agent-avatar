@@ -14,8 +14,10 @@ import type { Node } from '../node'
 import type { SwingSpec } from '../physics'
 import type { Channel, FaceGeom } from '../tables'
 import type { Ink, Theme } from '../themes'
+import { DECOR } from './decor'
 import { EYEWEAR } from './eyewear'
 import { HEADWEAR } from './headwear'
+import { NECKWEAR } from './neckwear'
 
 export type WearCtx = {
   sh: FaceGeom
@@ -49,8 +51,8 @@ export type WearSlot = 'headwear' | 'eyewear' | 'neckwear' | 'decor'
 export const WEAR: Record<WearSlot, Record<string, Wearable>> = {
   headwear: { ...HEADWEAR },
   eyewear: { ...EYEWEAR },
-  neckwear: {},
-  decor: {},
+  neckwear: { ...NECKWEAR },
+  decor: { ...DECOR },
 }
 
 /** The slots whose items may swing on their own spring. */
