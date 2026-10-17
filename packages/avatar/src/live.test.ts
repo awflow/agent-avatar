@@ -347,3 +347,91 @@ describe('Live lip-sync', () => {
     live.destroy()
   })
 })
+
+describe('Live.lookAt', () => {
+  function place(svg: SVGSVGElement, left: number) {
+    svg.getBoundingClientRect = () =>
+      ({
+        left,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: left + 100,
+        bottom: 100,
+      }) as DOMRect
+  }
+  function settleGaze(l: Live & any, n = 120) {
+    for (let i = 0; i < n; i++) {
+      l.measure()
+      l.step(1 / 60)
+    }
+  }
+  const gx = (r: any) => r.val.gx
+
+  test('looks at a Live to its right', () => {
+    const a = mount('Linh')
+    const b = mount('Ada')
+    place(a.svg, 0)
+    place(b.svg, 400)
+    a.live.lookAt(b.live)
+    settleGaze(a.rig)
+    expect(gx(a.rig)).toBeGreaterThan(0.3)
+    a.live.destroy()
+    b.live.destroy()
+  })
+
+  test('a destroyed target clears the target without throwing', () => {
+    const a = mount('Linh')
+    const b = mount('Ada')
+    place(a.svg, 0)
+    place(b.svg, 400)
+    a.live.lookAt(b.live)
+    settleGaze(a.rig)
+    b.live.destroy()
+    expect(() => settleGaze(a.rig, 240)).not.toThrow()
+    expect(a.rig.gazeTarget).toBeNull()
+    expect(Math.abs(gx(a.rig) - a.rig.base.gx)).toBeLessThan(0.3)
+    a.live.destroy()
+  })
+
+  test('a detached element clears the target; a connected one is followed', () => {
+    const a = mount('Linh')
+    place(a.svg, 0)
+    const el = document.createElement('div')
+    el.getBoundingClientRect = () =>
+      ({ left: 400, top: 0, width: 20, height: 20 }) as DOMRect
+    a.live.lookAt(el)
+    settleGaze(a.rig, 5)
+    expect(a.rig.gazeTarget).toBeNull()
+    document.body.appendChild(el)
+    a.live.lookAt(el)
+    settleGaze(a.rig)
+    expect(gx(a.rig)).toBeGreaterThan(0.3)
+    el.remove()
+    settleGaze(a.rig, 2)
+    expect(a.rig.gazeTarget).toBeNull()
+    a.live.destroy()
+  })
+
+  test('a locking activity ignores lookAt; null goes back', () => {
+    const a = mount('Linh', { activity: 'thinking' })
+    const b = mount('Ada')
+    place(a.svg, 0)
+    place(b.svg, 400)
+    const before = a.rig.base.gx
+    a.live.lookAt(b.live)
+    settleGaze(a.rig)
+    expect(a.rig.aim).not.toBeNull()
+    const locked = gx(a.rig) + a.rig.out.gx
+    expect(Math.abs(locked - before)).toBeLessThan(0.9)
+    const c = mount('Linh')
+    place(c.svg, 0)
+    c.live.lookAt(b.live)
+    settleGaze(c.rig)
+    c.live.lookAt(null)
+    settleGaze(c.rig, 240)
+    expect(Math.abs(gx(c.rig) - c.rig.base.gx)).toBeLessThan(0.3)
+    expect(a.live.element).toBe(a.svg)
+    for (const m of [a, b, c]) m.live.destroy()
+  })
+})

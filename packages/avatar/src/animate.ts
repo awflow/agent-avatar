@@ -369,6 +369,9 @@ export class Live {
   private fixed: Gaze | null = null
   private watch = false
   private rect: DOMRect | null = null
+  // who the eyes follow instead of the pointer, and where that is this frame
+  private gazeTarget: Live | Element | null = null
+  private aim: [number, number] | null = null
   private phase: number
   private reaction: { name: Reaction; t0: number } | null = null
   private fxKind: FxKind | null = null
@@ -441,7 +444,42 @@ export class Live {
 
   /** Read before any face writes this frame; see tick(). */
   measure() {
-    this.rect = this.watch && pointer ? this.svg.getBoundingClientRect() : null
+    const t = this.gazeTarget
+    if (t && (t instanceof Live ? !ALL.has(t) : !t.isConnected))
+      this.gazeTarget = null
+    this.aim = this.gazeTarget ? this.targetPoint(this.gazeTarget) : null
+    this.rect =
+      this.aim || (this.watch && pointer)
+        ? this.svg.getBoundingClientRect()
+        : null
+  }
+
+  /** The svg this avatar draws into, for others to measure. */
+  get element(): SVGSVGElement {
+    return this.svg
+  }
+
+  /** Look at another avatar or element; null goes back to the own gaze. */
+  lookAt(target: Live | Element | null) {
+    this.gazeTarget = target === this ? null : target
+    if (!this.gazeTarget) this.aim = null
+  }
+
+  /** A target's eye centre (an element's centre) in client px. */
+  private targetPoint(t: Live | Element): [number, number] | null {
+    if (t instanceof Live) {
+      const r = t.svg.getBoundingClientRect()
+      if (!(r.width > 0)) return null
+      const { baseY, eyeY, R } = frameOf(FACES[t.who.face])
+      const ex = 170 + t.val.x
+      const ey = eyeY + baseY - t.val.alt * R
+      return [
+        r.left + ((ex - VB[0]) / VB[2]) * r.width,
+        r.top + ((ey - VB[1]) / VB[3]) * r.height,
+      ]
+    }
+    const r = t.getBoundingClientRect()
+    return [r.left + r.width / 2, r.top + r.height / 2]
   }
 
   /**
@@ -707,10 +745,11 @@ export class Live {
     }
     const w = ATTENTION[st]
     const r = this.rect
-    if (pointer && r && w > 0 && !lock) {
+    const at = this.aim ?? pointer
+    if (at && r && w > 0 && !lock) {
       if (r.width > 0) {
-        const fx = VB[0] + ((pointer[0] - r.left) / r.width) * VB[2]
-        const fy = VB[1] + ((pointer[1] - r.top) / r.height) * VB[3]
+        const fx = VB[0] + ((at[0] - r.left) / r.width) * VB[2]
+        const fy = VB[1] + ((at[1] - r.top) / r.height) * VB[3]
         const { baseY, eyeY, R } = frameOf(face)
         const ex = 170 + this.val.x
         const ey = eyeY + baseY - this.val.alt * R
