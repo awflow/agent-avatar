@@ -166,7 +166,8 @@ export function thingGaze(face: FaceGeom, x: number, alt: number): Gaze {
 
 /**
  * The pose an expression settles to. A curious face ends up looking at the
- * thing in the corner; an explicit gaze wins over both.
+ * thing in the corner; an explicit gaze wins over both, unless the activity
+ * locks the gaze.
  */
 export function restPose(
   who: Pick<Axes, 'face'> & { key?: string },
@@ -197,9 +198,11 @@ export function restPose(
       pose[k as Channel] += loop[k as Channel]!
     }
   }
+  // an activity that locks the gaze drops a fixed gaze too, as Live does
+  const lock = ACTIVITIES[activity].lockGaze
   const g =
-    gaze ??
-    (expression === 'curious' && !ACTIVITIES[activity].lockGaze
+    (lock ? undefined : gaze) ??
+    (expression === 'curious' && !lock
       ? thingGaze(FACES[who.face], 0, s.alt)
       : null)
   if (g) [pose.gx, pose.gy] = g

@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import type { Activity } from './activity'
 import { Live } from './animate'
 import { draw, type Node, restPose } from './draw'
-import { serialize, settle } from './svg'
+import { type AvatarOptions, serialize, settle } from './svg'
+import { EXPRESSIONS, type Expression } from './tables'
 import { fakeDom, motion, mount } from './test/dom'
 
 fakeDom()
@@ -83,12 +84,22 @@ describe('Live.setActivity', () => {
     live.destroy()
   })
 
-  test('the first paint writes nothing over the server frame', () => {
+  /* every attribute write a fresh Live makes over the server frame */
+  function firstPaintWrites(
+    name: string,
+    o: AvatarOptions,
+    expression: Expression = 'normal',
+  ): string[] {
     const proto = (globalThis as any).Element.prototype
     const set = proto.setAttribute
     const rm = proto.removeAttribute
-    let writes: string[] = []
+    const writes: string[] = []
     motion.reduce = false
+    const { who, pose, opts } = settle(name, { ...o, expression }, true)
+    const tree = draw(who, pose, opts)
+    const host = document.createElement('div')
+    host.innerHTML = serialize(tree)
+    const svg = host.querySelector('svg') as unknown as SVGSVGElement
     proto.setAttribute = function (k: string, v: string) {
       writes.push(`${k}=${v}`)
       return set.call(this, k, v)
@@ -98,43 +109,58 @@ describe('Live.setActivity', () => {
       return rm.call(this, k)
     }
     try {
-      for (const activity of [
-        'thinking',
-        'working',
-        'done',
-        'waiting',
-        'sleeping',
-        'speaking',
-        'error',
-        'listening',
-      ] as Activity[])
-        for (const name of ['Linh', 'Ada Lovelace']) {
-          const { who, pose, opts } = settle(
-            name,
-            { activity, ring: { color: '#F08A24', pulse: true } },
-            true,
-          )
-          const tree = draw(who, pose, opts)
-          const host = document.createElement('div')
-          host.innerHTML = serialize(tree)
-          const svg = host.querySelector('svg') as unknown as SVGSVGElement
-          writes = []
-          const l = new Live(
-            svg,
-            tree,
-            who,
-            opts,
-            'normal',
-            undefined,
-            activity,
-          )
-          expect(writes).toEqual([])
-          l.destroy()
-        }
+      const l = new Live(svg, tree, who, opts, expression, o.gaze, o.activity)
+      l.destroy()
     } finally {
       proto.setAttribute = set
       proto.removeAttribute = rm
     }
+    return writes
+  }
+
+  test('the first paint writes nothing over the server frame', () => {
+    for (const activity of [
+      'thinking',
+      'working',
+      'done',
+      'waiting',
+      'sleeping',
+      'speaking',
+      'error',
+      'listening',
+    ] as Activity[])
+      for (const name of ['Linh', 'Ada Lovelace'])
+        expect(
+          firstPaintWrites(name, {
+            activity,
+            ring: { color: '#F08A24', pulse: true },
+          }),
+        ).toEqual([])
+  })
+
+  test('the first paint writes nothing under an explicit gaze, locked or not', () => {
+    const acts: Activity[] = [
+      'thinking',
+      'working',
+      'waiting',
+      'sleeping',
+      'offline',
+      'idle',
+      'speaking',
+    ]
+    for (const framing of ['peek', 'full'] as const)
+      for (const expression of Object.keys(EXPRESSIONS) as Expression[])
+        for (const activity of acts) {
+          const w = firstPaintWrites(
+            'Linh',
+            { activity, framing, gaze: [0.5, -0.3] },
+            expression,
+          )
+          if (w.length)
+            throw new Error(
+              `${framing} ${expression} ${activity}: ${w.join(' ')}`,
+            )
+        }
   })
 
   test('a curious face looks at the thing again after a locked activity', () => {
