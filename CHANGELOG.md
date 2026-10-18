@@ -1,6 +1,49 @@
 # Changelog
 
-All seven packages share one version.
+The seven packages started at one version (1.0.0) and are versioned
+independently from there: a patch bumps only the packages whose published
+files change.
+
+## 1.0.1 (2026-10-18)
+
+`@awflow/avatar` 1.0.1, `@awflow/avatar-export` 1.0.1 and
+`@awflow/avatar-element` 1.0.1. The React, Svelte, Vue and Solid adapters
+are unchanged at 1.0.0 (their tarballs are byte-identical) and accept core
+1.0.1 through `^1.0.0`.
+
+### Fixes
+
+- `@awflow/avatar-element`: 1.0.0 shipped a 75-byte `dist/index.js` that
+  called and exported `defineAvatarElements` without defining it, so the
+  package failed to import. The bundler had honoured the dist-only
+  `sideEffects` list on the sources and dropped `define.ts`. The element
+  and export builds now bundle a staged copy of `src`, and every build fails
+  when an entry exports a name it never defines. Importing in Node is safe
+  again and defines nothing.
+- CLI (`@awflow/avatar`): `sheet <file>` checks the file size before
+  reading and `sheet -` reads stdin bounded: an input over 64 KiB is refused
+  with one line naming the limit. `-h` and `-v` are aliases of `--help` and
+  `--version`. `--fps` or `--seconds` without `--gif` is a one-line usage
+  error instead of being ignored.
+- `@awflow/avatar-export`: `toSprite` accepts `readonly string[]`.
+- `engines: { node: ">=20" }` on `@awflow/avatar` and `@awflow/avatar-export`,
+  whose bins need Node 20.
+
+### Docs and tooling
+
+- A full root README (packages, install per framework, examples, options).
+- READMEs: CLI examples through `npx @awflow/avatar` and
+  `npx @awflow/avatar-export`; the export browser setup installs
+  `@resvg/resvg-wasm@2.6.2` explicitly, credits resvg (MPL-2.0) and notes the
+  worst-case CPU time of large GIF and APNG exports on servers.
+- `scripts/release.ts` installs the tarballs into a consumer and, under plain
+  Node, imports every entry, checks every declared value export, renders the
+  element under happy-dom and every adapter on the server against `toSvg`,
+  and runs both bins. It packs every package but prints a publish command
+  only for versions not yet on npm, and fails when an already published
+  version would pack differently.
+- CI: read-only token, Node 20 and 22, the core size file must stay as
+  committed; core tests no longer leak live avatars across files.
 
 ## 1.0.0 (2026-10-18)
 
