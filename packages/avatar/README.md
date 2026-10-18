@@ -32,7 +32,7 @@ Dress a face with independent slots and a held prop:
 ```js
 toSvg('Linh', { eyewear: 'glasses', headwear: 'bow' })
 toSvg('Linh', { eyewear: 'visor', headwear: 'wizard', prop: 'coffee' })
-toSvg('Linh', { headwear: 'cap', neckwear: 'scarf', face: 'freckles' })
+toSvg('Linh', { headwear: 'cap', neckwear: 'scarf', decor: 'freckles' })
 toSvg('Linh', { dress: true }) // let the name pick the wardrobe
 ```
 
