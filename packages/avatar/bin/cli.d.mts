@@ -7,7 +7,11 @@
 export type CliIO = {
   out(data: Uint8Array | string): void
   err(text: string): void
-  stdin(): string
+  /**
+   * The sheet's stdin. Reading more than `maxBytes + 1` bytes is never
+   * needed: a longer input is refused.
+   */
+  stdin(maxBytes: number): string
   /** Loads the raster package; defaults to importing @awflow/avatar-export. */
   loadExport?: () => Promise<unknown>
 }

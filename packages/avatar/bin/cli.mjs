@@ -4,7 +4,7 @@
  * with the process; `@awflow/avatar-export`'s bin calls it with the export
  * package already in hand.
  */
-import { readFileSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import {
   ACTIVITIES,
@@ -24,6 +24,9 @@ const HINT = 'Install @awflow/avatar-export for --png/--gif/--sprite'
 const FRAMES = ['ink', 'bone', 'paper', 'none', 'theme']
 const FRAMINGS = ['peek', 'full']
 const MAX_SHEET = 400
+// 400 names fit with room to spare; a larger input is not read at all
+const MAX_SHEET_BYTES = 64 * 1024
+const TOO_BIG = `a sheet input is limited to ${MAX_SHEET_BYTES} bytes (64 KiB)`
 // the silhouette is --shape; --face would be ambiguous between v1 and v2
 const AXIS_FLAGS = AXES.filter((a) => a !== 'face')
 
@@ -32,6 +35,7 @@ const USAGE = `awflow-avatar: deterministic SVG avatars from a name
 Usage:
   awflow-avatar <name> [options]        SVG on stdout
   awflow-avatar sheet <file|-> [options]  names, one per line, as one SVG grid
+                                        (at most ${MAX_SHEET} names, 64 KiB)
   After --, every argument is a name: awflow-avatar -- sheet draws "sheet".
 
 Options:
@@ -47,10 +51,10 @@ Options:
                      override one hashed axis (color also takes #rrggbb)
   --png <n>          PNG, n pixels square (needs @awflow/avatar-export)
   --gif <n>          animated GIF, n pixels square (same), with --fps <n>
-                     and --seconds <n>
+                     and --seconds <n> (they apply to --gif only)
   --sprite           sprite sheet PNG, tiles --size pixels (default 256)
-  --version          print the version
-  --help             print this help
+  -v, --version      print the version
+  -h, --help         print this help
 `
 
 class Usage extends Error {}
@@ -86,6 +90,7 @@ const VALUE = new Set([
   ...AXIS_FLAGS,
 ])
 const BOOLEAN = new Set(['dress', 'sprite', 'help', 'version'])
+const SHORT = { '-h': 'help', '-v': 'version' }
 
 /** argv to { positionals, opts (AvatarOptions), flags (the rest) }. */
 function parse(argv) {
@@ -95,6 +100,10 @@ function parse(argv) {
   let rest = false
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
+    if (!rest && SHORT[a]) {
+      flags[SHORT[a]] = true
+      continue
+    }
     if (rest || !a.startsWith('--')) {
       positionals.push(a)
       continue
@@ -181,6 +190,39 @@ function grid(names, opts) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${cells.join('')}</svg>\n`
 }
 
+/**
+ * Reads at most `max + 1` bytes from `fd`, so an endless or huge input costs
+ * no more than the limit. A short result is the whole input.
+ */
+function readFd(fd, max) {
+  const buf = Buffer.alloc(max + 1)
+  let n = 0
+  while (n < buf.length) {
+    let got
+    try {
+      got = readSync(fd, buf, n, buf.length - n, null)
+    } catch (e) {
+      if (e?.code === 'EAGAIN') continue
+      if (e?.code === 'EOF') break
+      throw e
+    }
+    if (got === 0) break
+    n += got
+  }
+  return buf.subarray(0, n).toString('utf8')
+}
+
+/** A sheet file, its size checked before a byte is read. */
+function readSheetFile(path, max) {
+  if (statSync(path).size > max) fail(TOO_BIG)
+  const fd = openSync(path, 'r')
+  try {
+    return readFd(fd, max)
+  } finally {
+    closeSync(fd)
+  }
+}
+
 /** The export package: the caller's, or an import by specifier. */
 async function exporter(loadExport) {
   try {
@@ -197,8 +239,10 @@ async function exporter(loadExport) {
 }
 
 /**
- * Run the CLI. `io` is { out(bytes|string), err(string), stdin(): string,
- * loadExport?: () => Promise<module> }. Resolves to the exit code.
+ * Run the CLI. `io` is { out(bytes|string), err(string),
+ * stdin(maxBytes): string, loadExport?: () => Promise<module> }. stdin need
+ * not read past maxBytes + 1: a longer result is refused either way.
+ * Resolves to the exit code.
  */
 export async function main(argv, io) {
   try {
@@ -213,6 +257,8 @@ export async function main(argv, io) {
     }
     const raster = [flags.png, flags.gif, flags.sprite].filter(Boolean).length
     if (raster > 1) fail('use one of --png, --gif and --sprite')
+    if ((flags.fps !== undefined || flags.seconds !== undefined) && !flags.gif)
+      fail('--fps and --seconds apply to --gif only')
     const sheet = !literal && positionals[0] === 'sheet'
     let names
     if (sheet) {
@@ -221,11 +267,13 @@ export async function main(argv, io) {
       try {
         text =
           positionals[1] === '-'
-            ? io.stdin()
-            : readFileSync(positionals[1], 'utf8')
+            ? io.stdin(MAX_SHEET_BYTES)
+            : readSheetFile(positionals[1], MAX_SHEET_BYTES)
       } catch (e) {
+        if (e instanceof Usage) throw e
         fail(`cannot read ${positionals[1]}: ${e?.code ?? e?.message ?? e}`)
       }
+      if (Buffer.byteLength(text, 'utf8') > MAX_SHEET_BYTES) fail(TOO_BIG)
       names = text
         .split(/\r?\n/)
         .map((s) => s.trim())
@@ -276,7 +324,7 @@ export async function run(argv, loadExport) {
     out: (d) =>
       chunks.push(typeof d === 'string' ? Buffer.from(d) : Buffer.from(d)),
     err: (s) => process.stderr.write(s),
-    stdin: () => readFileSync(0, 'utf8'),
+    stdin: (max) => readFd(0, max),
     loadExport,
   })
   const all = Buffer.concat(chunks)

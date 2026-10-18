@@ -1,5 +1,6 @@
-import { beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { toSvg } from './index'
 
@@ -163,6 +164,68 @@ describe('awflow-avatar', () => {
     await p.exited
     expect(err).not.toContain('EPIPE')
     expect(err).not.toContain('Error')
+  })
+
+  test('-h and -v are --help and --version', async () => {
+    const h = await cli(['-h'])
+    expect(h.code).toBe(0)
+    expect(h.text).toBe((await cli(['--help'])).text)
+    const v = await cli(['-v'])
+    expect(v.code).toBe(0)
+    expect(v.text).toBe((await cli(['--version'])).text)
+    // after -- they are names
+    expect((await cli(['--', '-h'])).text).toContain('aria-label="-h"')
+  })
+
+  for (const args of [
+    ['Linh', '--png', '64', '--fps', '10'],
+    ['Linh', '--png', '64', '--seconds', '1'],
+    ['Linh', '--sprite', '--fps', '10'],
+    ['Linh', '--sprite', '--seconds', '1'],
+    ['Linh', '--fps', '10'],
+  ])
+    test(`${JSON.stringify(args)}: --fps/--seconds need --gif`, async () => {
+      const r = await cli(args, undefined, {
+        AWFLOW_AVATAR_EXPORT_MODULE: 'awflow-no-such-export-package',
+      })
+      expect(r.code).toBe(1)
+      expect(r.out.length).toBe(0)
+      expect(r.err).toBe(
+        'awflow-avatar: --fps and --seconds apply to --gif only\n',
+      )
+    })
+
+  describe('sheet input is bounded', () => {
+    const limit =
+      'awflow-avatar: a sheet input is limited to 65536 bytes (64 KiB)\n'
+    const dir = mkdtempSync(join(tmpdir(), 'awflow-cli-'))
+    const big = join(dir, 'big.txt')
+    const ok = join(dir, 'ok.txt')
+    beforeAll(() => {
+      writeFileSync(big, 'Linh\n'.repeat(20_000))
+      writeFileSync(ok, `${'x'.repeat(65_530)}\nLinh\n`.slice(0, 65_536))
+    })
+    afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+    test('a file over 64 KiB is refused before it is read', async () => {
+      const r = await cli(['sheet', big])
+      expect(r.code).toBe(1)
+      expect(r.out.length).toBe(0)
+      expect(r.err).toBe(limit)
+    })
+
+    test('stdin over 64 KiB is refused', async () => {
+      const r = await cli(['sheet', '-'], 'Linh\n'.repeat(20_000))
+      expect(r.code).toBe(1)
+      expect(r.out.length).toBe(0)
+      expect(r.err).toBe(limit)
+    })
+
+    test('exactly 64 KiB still draws', async () => {
+      const r = await cli(['sheet', ok])
+      expect(r.code).toBe(0)
+      expect(r.text.match(/<svg /g)?.length).toBe(3)
+    })
   })
 
   test('an unreadable sheet file says why', async () => {
