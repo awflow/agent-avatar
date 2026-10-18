@@ -8,7 +8,7 @@ files change.
 
 `@awflow/avatar` 1.0.1, `@awflow/avatar-export` 1.0.1 and
 `@awflow/avatar-element` 1.0.1. The React, Svelte, Vue and Solid adapters
-are unchanged at 1.0.0 (their tarballs are byte-identical) and accept core
+are unchanged at 1.0.0 (their published files are unchanged) and accept core
 1.0.1 through `^1.0.0`.
 
 ### Fixes
