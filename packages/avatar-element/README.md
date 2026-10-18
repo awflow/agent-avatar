@@ -43,7 +43,9 @@ Methods: `react(name)`, `pulse(strength?)`, `setVoice(fn | null)`,
 Properties `ring`, `gaze`, `reaction` and `reactKey` accept objects directly.
 
 `defineAvatarElements(prefix = 'awf')` registers the tags under another prefix.
-Importing in Node is safe and defines nothing.
+Importing in Node (SSR, tests) is safe from 1.0.1 and defines nothing; the
+1.0.0 build was broken (its `dist/index.js` lacked the definitions), so use
+1.0.1 or later.
 
 ## Docs
 

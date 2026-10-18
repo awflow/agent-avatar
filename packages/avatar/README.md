@@ -66,26 +66,30 @@ The same normalized name and options produce the same SVG every time.
 npx @awflow/avatar Linh > linh.svg
 npx @awflow/avatar Linh --theme bold --expression happy --framing full --size 200
 printf 'Linh\nBao\nAda\n' | npx @awflow/avatar sheet - > team.svg
+npx @awflow/avatar sheet names.txt --size 64 > team.svg
 ```
 
-`awflow-avatar <name> [options]` prints the avatar's SVG on stdout.
-`awflow-avatar sheet <file|->` reads names, one per line, and prints one SVG
-grid. Options: `--theme`, `--shape`, `--expression`, `--activity`,
+`npx @awflow/avatar <name> [options]` prints the avatar's SVG on stdout.
+`npx @awflow/avatar sheet <file|->` reads names, one per line (at most 400
+names and 64 KiB; a larger input is refused before it is read), and prints one
+SVG grid. Options: `--theme`, `--shape`, `--expression`, `--activity`,
 `--framing peek|full`, `--frame`, `--size`, `--dress`, and one flag per hashed
 axis (`--eyes`, `--brows`, `--mouth`, `--cheeks`, `--trait`, `--motif`,
-`--eyewear`, `--headwear`, `--neckwear`, `--decor`, `--color`). `--help` lists
-the accepted values. A bad flag or value prints one line on stderr and exits 1.
+`--eyewear`, `--headwear`, `--neckwear`, `--decor`, `--color`). `-h` or
+`--help` lists the accepted values, `-v` or `--version` prints the version. A
+bad flag or value prints one line on stderr and exits 1.
 
 Raster output needs the optional `@awflow/avatar-export` package, which
-writes raw bytes to stdout:
+writes raw bytes to stdout. Run it through that package's own command:
 
 ```sh
 npx @awflow/avatar-export Linh --png 256 > linh.png
-awflow-avatar Linh --gif 128 --fps 12 --seconds 2 > linh.gif
-awflow-avatar sheet names.txt --sprite --size 64 > team.png
+npx @awflow/avatar-export Linh --gif 128 --fps 12 --seconds 2 > linh.gif
+npx @awflow/avatar-export sheet names.txt --sprite --size 64 > team.png
 ```
 
-Without it, `--png`, `--gif` and `--sprite` print
+`--fps` and `--seconds` apply to `--gif` only. Where `@awflow/avatar-export`
+is not installed, `--png`, `--gif` and `--sprite` print
 `Install @awflow/avatar-export for --png/--gif/--sprite` and exit 1. The CLI
 runs on Node 20 or later and uses no dependencies.
 

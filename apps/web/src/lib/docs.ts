@@ -732,7 +732,8 @@ const sheet = await toSprite(['Ada', 'Linh', 'Sam'], {}, { size: 64, gap: 4 })`,
         check: true,
       },
       { h: 'In the browser' },
-      'Load the wasm once with `init` before the first export:',
+      'Load the wasm once with `init` before the first export. Importing the wasm by path needs `@resvg/resvg-wasm` as a direct dependency under strict package managers (pnpm), at the version the export package uses:',
+      { code: 'npm i @resvg/resvg-wasm@2.6.2', lang: 'bash' },
       {
         code: `import { init, toPng } from '@awflow/avatar-export'
 import wasmUrl from '@resvg/resvg-wasm/index_bg.wasm?url' // Vite
@@ -743,6 +744,7 @@ const png = await toPng('Linh')`,
       },
       { h: 'Limits' },
       '`LIMITS` is `{ maxFrames: 600, maxSize: 1024, maxSprite: 400, maxSheet: 16777216 }`. A value out of range throws a `RangeError` that names the limit, before anything is drawn. Keep GIFs at 50 fps or less; APNG timing is exact.',
+      'Rasterising is synchronous CPU work. On a recent laptop a 1024 px, 60-frame export takes about 13 s as a GIF and 17 s as an APNG; the worst case the limits allow (600 frames at 1024 px) is minutes. On a server, cap `size`, `fps` and `seconds` for untrusted input and export in a worker or a queue.',
       { h: 'Command line' },
       '`awflow-avatar` ships with the core and needs nothing else for SVG. Raster flags load `@awflow/avatar-export`.',
       {
@@ -771,11 +773,12 @@ npx @awflow/avatar-export sheet names.txt --sprite --size 128 > team.png`,
           ],
           [
             '`--png <n>` · `--gif <n>` · `--sprite`',
-            'raster output, with `--fps` and `--seconds` for GIF',
+            'raster output, with `--fps` and `--seconds` for `--gif` only',
           ],
+          ['`-h` `--help` · `-v` `--version`', 'the help · the version'],
         ],
       },
-      'A bad flag or value prints one line on stderr and exits 1. Runs on Node 20 or later.',
+      'A sheet takes at most 400 names and 64 KiB; a larger input is refused before it is read. A bad flag or value prints one line on stderr and exits 1. Runs on Node 20 or later.',
     ],
   },
   {
@@ -870,6 +873,16 @@ const same = toSvg('Linh', { style: 'peek@1' }) // what Peek drew`,
     blurb: 'What shipped, and when.',
     task: 'Upgrade @awflow/avatar in this project to the latest version.',
     blocks: [
+      { h: '1.0.1' },
+      'A patch for `@awflow/avatar`, `@awflow/avatar-export` and `@awflow/avatar-element`; the framework adapters stay at 1.0.0.',
+      {
+        list: [
+          '`@awflow/avatar-element`: the 1.0.0 build shipped without its definitions and failed to import. Fixed; importing in Node is safe and defines nothing.',
+          'CLI: a sheet input over 64 KiB is refused before it is read; `-h` and `-v`; `--fps` and `--seconds` without `--gif` are an error.',
+          '`toSprite` accepts a readonly list of names.',
+          '`engines.node >=20` on the core and the export package.',
+        ],
+      },
       { h: '1.0.0' },
       'First release.',
       {

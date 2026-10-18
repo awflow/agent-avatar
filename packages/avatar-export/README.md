@@ -40,7 +40,14 @@ Write the bytes anywhere: `await Bun.write('linh.png', png)`,
 ## Browsers
 
 Load the wasm once with `init` before the first export. It takes a
-`fetch()` response (or its promise), an `ArrayBuffer`, typed array or a `URL`:
+`fetch()` response (or its promise), an `ArrayBuffer`, typed array or a `URL`.
+The wasm file comes from `@resvg/resvg-wasm`, which this package depends on.
+Importing it by path from your own code needs it as a direct dependency under
+strict package managers (pnpm), at the exact version this package uses:
+
+```sh
+npm install @resvg/resvg-wasm@2.6.2
+```
 
 ```ts
 import { init, toPng } from '@awflow/avatar-export'
@@ -65,6 +72,13 @@ that names the limit.
 GIF counts time in hundredths of a second and browsers slow down frames
 shorter than 2/100 s, so keep GIFs at 50 fps or less. APNG timing is exact.
 
+Rasterising is synchronous CPU work on the calling thread. On a recent laptop
+a 1024 px, 60-frame export takes about 13 s as a GIF and 17 s as an APNG, and
+a sheet of 256 tiles at 256 px about 11 s. The worst case the limits allow,
+600 frames at 1024 px, is minutes of CPU. On a server, cap `size`, `fps` and
+`seconds` well below `LIMITS` for untrusted input, and run exports in a worker
+or a queue rather than on the request path.
+
 ## Docs
 
 Full documentation: <https://github.com/awflow/agent-avatar#readme>
@@ -72,7 +86,9 @@ Full documentation: <https://github.com/awflow/agent-avatar#readme>
 ## Credits
 
 Built on Peek by Doan Labs (MIT). Rasterising by
-[resvg](https://github.com/linebender/resvg), GIF encoding by
+[resvg](https://github.com/linebender/resvg) through
+[`@resvg/resvg-wasm`](https://www.npmjs.com/package/@resvg/resvg-wasm)
+(MPL-2.0), GIF encoding by
 [gifenc](https://github.com/mattdesl/gifenc), compression by
 [fflate](https://github.com/101arrowz/fflate).
 
