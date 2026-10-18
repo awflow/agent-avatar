@@ -41,6 +41,9 @@
   },
   "description": "Rasterise AWFlow avatars to PNG, APNG, GIF and sprite sheets, in Node and the browser.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "author": "AWFlow",
   "homepage": "https://github.com/awflow/agent-avatar",
   "repository": {

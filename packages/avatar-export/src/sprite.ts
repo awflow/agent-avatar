@@ -22,7 +22,7 @@ export type SpriteSettings = {
  * apply to every tile. The sheet's area is at most LIMITS.maxSheet pixels. Name i sits at column i % columns, row i / columns.
  */
 export async function toSprite(
-  names: string[],
+  names: readonly string[],
   opts: AvatarOptions = {},
   o: SpriteSettings = {},
 ): Promise<Uint8Array> {

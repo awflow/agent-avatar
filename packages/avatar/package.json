@@ -68,6 +68,9 @@
   },
   "description": "Deterministic SVG avatars from a name, with expressions and a framework-free live mount.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "author": "AWFlow",
   "homepage": "https://github.com/awflow/agent-avatar",
   "repository": {

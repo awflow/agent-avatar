@@ -203,7 +203,9 @@ describe('toSprite', () => {
   })
 
   test('lays names out in a grid of columns', async () => {
-    const sheet = await toSprite(['A', 'B', 'C'], {}, { size: 64, columns: 2 })
+    // a readonly list is accepted (a type check as much as a test)
+    const names = ['A', 'B', 'C'] as const
+    const sheet = await toSprite(names, {}, { size: 64, columns: 2 })
     const info = readPng(sheet)
     expect(info.width).toBe(128)
     expect(info.height).toBe(128)
