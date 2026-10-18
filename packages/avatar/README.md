@@ -45,6 +45,74 @@ Headwear: `bow`, `cap`, `sprout`, `beanie`, `headphones`, `antenna`,
 avatars stay unchanged. The framework components take the same options as
 props.
 
+## Plugins
+
+Register shapes, wardrobe items, props, overlays, themes and characters at
+runtime with `registerPlugins([...])`, on the server and the client, before
+the first render. A plugin is reachable only through an explicit option
+(`shape: 'squircle'`, `headwear: 'cat-ears'`, `character: 'my-mascot'`), never
+through the hash, so a name keeps its face whatever is registered. Built-in
+names cannot be replaced. Every plugin node lands under `plugin.<name>.*`; a
+drawing that throws or yields non-finite numbers is skipped for that render
+and reported once.
+
+| Kind | Define with | Selected by |
+| --- | --- | --- |
+| Body shape | `defineShape({ name, geom })` | `shape` |
+| Accessory | `defineAccessory({ slot, name, draw, physics? })` | `headwear`, `eyewear`, `neckwear`, `decor` |
+| Held prop | `defineProp({ name, draw })` | `prop` |
+| Overlay | `defineFx({ name, shapes })` | `fx` |
+| Theme | `defineTheme({ name, ... })` | `theme` |
+| Character | `defineCharacter({ name, geom, draw, ... })` | `character` |
+
+### Characters
+
+A character is a whole mascot drawn on the package's own rig: blinks,
+saccades, breathing, springs, activity poses, reactions and overlays all stay
+the package's, and the character turns them into shapes.
+
+```js
+import { defineCharacter, el, registerPlugins, toSvg } from '@awflow/avatar'
+
+const mascot = defineCharacter({
+  name: 'my-mascot',
+  geom, // a FaceGeom: the anchors wardrobe, props, overlays and rings use
+  physics: { stiffness: 9, damping: 0.3, maxSwing: 18 }, // optional own spring
+  parts: { brows: 'none' }, // optional: pin built-in parts
+  draw: (c) => ({
+    defs: [], // gradients and clip paths, ids prefixed with c.id
+    back: [], // behind the body
+    body: [el('path', 'shell', { d: '...', fill: c.ink.body })],
+    front: [], // over the face, under the wardrobe
+  }),
+  eye: (c, eye) => [/* drawn about the eye centre */],
+  brow: (c, brow) => [/* drawn at the brow, already tilted */],
+  mouth: (c, mouth) => [/* drawn at the mouth, already skewed */],
+})
+registerPlugins([mascot])
+toSvg('Aria', { character: 'my-mascot', framing: 'full' })
+```
+
+- `geom` is checked as a shape's geometry is and stored frozen. The rig, the
+  wardrobe, held props and overlays all place by it.
+- `draw(ctx)` gets everything a wardrobe drawing gets (`pose`, `g(channel)`
+  with the persona applied, the clock `t`, `theme`, `ink`, `id`, `size`)
+  plus `activity`, `expression`, `tier` (2, 1 below 44px, 0 below 24px),
+  `line` (the theme's feature ink), `breath` (-1..1), `swing` (its own
+  spring, else the body swing), `lag`, and the `reaction` playing with its
+  progress `reactionP`.
+- `eye`, `brow` and `mouth` are optional. Left out, the built-in part draws
+  on the character's anchors (pinned by `parts`, else picked by the name).
+  An eye gets its final lid (blink and wink included), lower lid, tilt,
+  pupil, shine, gaze and a `happy` 0..1 for a smiling arc.
+- The `focus` channel springs to 1 while thinking or working and back to 0
+  otherwise: drive anything that should slide in and out with it.
+- Return the same nodes every frame and per tier, never per pose: a live
+  avatar keeps its node set. Round your numbers (two decimals) so every
+  engine writes the same bytes.
+- Unknown names draw the avatar as without a character. A failing body draws
+  the geometry's plain silhouette instead, so the avatar never vanishes.
+
 ## Plain SVG and identity entry points
 
 The SVG and identity entry points have no runtime dependencies:

@@ -18,6 +18,7 @@
  * the same nodes every frame, as built-in items do.
  */
 
+import type { CharacterPlugin } from './character'
 import type { FxAnchor, FxShape } from './fx'
 import { FX_KINDS } from './fx'
 import { seat } from './geom'
@@ -25,7 +26,7 @@ import { LISTS } from './identity'
 import { el, type Node } from './node'
 import type { SwingSpec } from './physics'
 import { note, registry } from './registry'
-import { FACES, type FaceGeom, PROPS } from './tables'
+import { FACES, type FaceGeom, type Part, PROPS } from './tables'
 import { registerTheme, resetThemesForTests, type ThemePlugin } from './themes'
 import type { WearCtx, WearDraw, WearSlot } from './wardrobe/context'
 
@@ -47,11 +48,20 @@ export type FxPlugin = {
   shapes: (t: number, p: number, anchor: FxAnchor) => FxShape[]
 }
 export type ShapePlugin = { kind: 'shape'; name: string; geom: FaceGeom }
+export type {
+  BrowState,
+  CharacterCtx,
+  CharacterLayers,
+  CharacterPlugin,
+  EyeState,
+  MouthState,
+} from './character'
 export type Plugin =
   | AccessoryPlugin
   | PropPlugin
   | FxPlugin
   | ShapePlugin
+  | CharacterPlugin
   | ThemePlugin
 
 const SLOTS: readonly WearSlot[] = ['headwear', 'eyewear', 'neckwear', 'decor']
@@ -85,21 +95,7 @@ export function defineAccessory(
       throw new Error(
         `plugin "${p.name}": ${p.slot} does not swing, so it takes no physics`,
       )
-    const s = p.physics as Partial<Record<keyof SwingSpec, unknown>> | null
-    const num = (v: unknown): v is number =>
-      typeof v === 'number' && Number.isFinite(v)
-    if (
-      !s ||
-      !num(s.stiffness) ||
-      !num(s.damping) ||
-      !num(s.maxSwing) ||
-      s.stiffness <= 0 ||
-      s.damping < 0 ||
-      s.maxSwing <= 0
-    )
-      throw new Error(
-        `plugin "${p.name}": physics needs finite numbers: stiffness > 0, damping >= 0 and maxSwing > 0`,
-      )
+    checkPhysics(p.name, p.physics)
   }
   return { kind: 'accessory', ...p }
 }
@@ -170,10 +166,14 @@ const SHAPE_NUMBERS = [
  */
 export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
   checkName(p.name)
-  const at = `shape "${p.name}":`
-  if (!p.geom || typeof p.geom !== 'object')
+  return { kind: 'shape', ...p, geom: checkGeom(`shape "${p.name}":`, p.geom) }
+}
+
+// a geometry checked as defineShape checks it, returned as a frozen copy
+function checkGeom(at: string, geom: unknown): FaceGeom {
+  if (!geom || typeof geom !== 'object')
     throw new Error(`${at} geom is missing`)
-  const g = structuredClone(p.geom) as FaceGeom
+  const g = structuredClone(geom) as FaceGeom
   const b = g.body as { d?: unknown; circle?: unknown } | undefined
   if (!b || (typeof b.d !== 'string' && !Array.isArray(b.circle)))
     throw new Error(`${at} body needs a path d or a circle`)
@@ -212,7 +212,64 @@ export function defineShape(p: Omit<ShapePlugin, 'kind'>): ShapePlugin {
   const s = seat(g.crown, 0, 0)
   if (![...all, s.x, s.y, s.a].every(Number.isFinite))
     throw new Error(`${at} every number must be finite`)
-  return { kind: 'shape', ...p, geom: deepFreeze(g) }
+  return deepFreeze(g)
+}
+
+// the swing spec an accessory or a character declares, checked
+function checkPhysics(name: string, spec: unknown) {
+  const s = spec as Partial<Record<keyof SwingSpec, unknown>> | null
+  const num = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isFinite(v)
+  if (
+    !s ||
+    !num(s.stiffness) ||
+    !num(s.damping) ||
+    !num(s.maxSwing) ||
+    s.stiffness <= 0 ||
+    s.damping < 0 ||
+    s.maxSwing <= 0
+  )
+    throw new Error(
+      `plugin "${name}": physics needs finite numbers: stiffness > 0, damping >= 0 and maxSwing > 0`,
+    )
+}
+
+// the built-in parts a character may pin, by axis
+const PINNABLE = ['eyes', 'brows', 'mouth', 'cheeks'] as const
+
+/**
+ * A character: a whole mascot drawn in body space, behind, as and in front
+ * of the face, on the package's own rig. Its geometry is a body shape's
+ * (checked as defineShape checks one): the anchors every built-in wardrobe
+ * item, prop, overlay and ring is placed by. It may draw its own eyes, brows
+ * and mouth, or pin built-in parts in `parts`; whatever it leaves out comes
+ * from the name, as on any avatar. The geometry is stored as a frozen copy.
+ */
+export function defineCharacter(
+  p: Omit<CharacterPlugin, 'kind'>,
+): CharacterPlugin {
+  checkName(p.name)
+  const at = `character "${p.name}":`
+  fn(p.name, 'draw', p.draw)
+  for (const k of ['eye', 'brow', 'mouth'] as const)
+    if (p[k] !== undefined) fn(p.name, k, p[k])
+  if (p.physics !== undefined) checkPhysics(p.name, p.physics)
+  if (p.parts !== undefined) {
+    if (!p.parts || typeof p.parts !== 'object')
+      throw new Error(`${at} parts must be an object`)
+    for (const [k, v] of Object.entries(p.parts)) {
+      if (!(PINNABLE as readonly string[]).includes(k))
+        throw new Error(`${at} parts may pin ${PINNABLE.join(', ')} only`)
+      if (!(LISTS[k as Part] as readonly unknown[]).includes(v))
+        throw new Error(`${at} parts.${k} ${JSON.stringify(v)} is not built in`)
+    }
+  }
+  return {
+    kind: 'character',
+    ...p,
+    geom: checkGeom(at, p.geom),
+    ...(p.parts ? { parts: Object.freeze({ ...p.parts }) } : {}),
+  }
 }
 
 /* the registry: one namespace for every kind but themes, which keep theirs */
@@ -233,10 +290,19 @@ function builtIn(p: Exclude<Plugin, ThemePlugin>): string | null {
       return (FX_KINDS as readonly string[]).includes(p.name) ? 'fx' : null
     case 'shape':
       return Object.hasOwn(FACES, p.name) ? 'shape' : null
+    case 'character':
+      return null
   }
 }
 
-const KINDS = new Set(['accessory', 'prop', 'fx', 'shape', 'theme'])
+const KINDS = new Set([
+  'accessory',
+  'prop',
+  'fx',
+  'shape',
+  'character',
+  'theme',
+])
 
 // the same kind of thing under the same name: a re-registration, not a clash
 const sameKind = (a: Plugin, b: Plugin) =>
@@ -262,15 +328,16 @@ export function registerPlugins(items: Plugin[]): void {
   const next = [...reg.list]
   const replaced: string[] = []
   const themes: ThemePlugin[] = []
-  // each shape's checked, frozen copy, kept beside the plugin as passed
-  const geoms: [ShapePlugin, FaceGeom][] = []
+  // each shape's or character's checked, frozen copy, kept beside the
+  // plugin as passed
+  const geoms: [ShapePlugin | CharacterPlugin, FaceGeom][] = []
   const themeAt = (name: string) =>
     next.findIndex((q) => q.kind === 'theme' && q.theme.name === name)
   for (const p of items) {
     if (next.includes(p)) continue
     if (!p || !KINDS.has(p.kind))
       throw new Error(
-        'a plugin needs a kind: accessory, prop, fx, shape or theme',
+        'a plugin needs a kind: accessory, prop, fx, shape, character or theme',
       )
     if (p.kind === 'theme') {
       registerTheme(p.theme, true)
@@ -289,7 +356,9 @@ export function registerPlugins(items: Plugin[]): void {
           ? defineProp(p)
           : p.kind === 'fx'
             ? defineFx(p)
-            : defineShape(p)
+            : p.kind === 'character'
+              ? defineCharacter(p)
+              : defineShape(p)
     const kind = builtIn(checked)
     if (kind)
       throw new Error(
@@ -299,7 +368,8 @@ export function registerPlugins(items: Plugin[]): void {
     if (had && !sameKind(had, p))
       throw new Error(`"${p.name}" is taken by another plugin`)
     staged.set(p.name, p)
-    if (checked.kind === 'shape') geoms.push([p as ShapePlugin, checked.geom])
+    if (checked.kind === 'shape' || checked.kind === 'character')
+      geoms.push([p as ShapePlugin | CharacterPlugin, checked.geom])
     if (had) {
       next[next.indexOf(had)] = p
       replaced.push(p.name)
@@ -360,11 +430,30 @@ export function shapeOf(name: unknown): ShapePlugin | undefined {
   return p?.kind === 'shape' ? p : undefined
 }
 
+export function characterOf(name: unknown): CharacterPlugin | undefined {
+  const p = typeof name === 'string' ? names().get(name) : undefined
+  return p?.kind === 'character' ? p : undefined
+}
+
 /** A body's geometry: a built-in face, else a registered shape. */
 export function geomOf(face: string): FaceGeom {
   if (Object.hasOwn(FACES, face)) return FACES[face as keyof typeof FACES]
   const p = shapeOf(face)
   return (p && (registry().geoms.get(p) ?? p.geom)) as FaceGeom
+}
+
+/** A character's checked geometry. */
+export function characterGeom(p: CharacterPlugin): FaceGeom {
+  return registry().geoms.get(p) ?? p.geom
+}
+
+/**
+ * What an avatar's body is placed by: its character's anchors when it wears
+ * one that is registered, else its face's.
+ */
+export function bodyGeom(who: { face: string; character?: string }): FaceGeom {
+  const c = characterOf(who.character)
+  return c ? characterGeom(c) : geomOf(who.face)
 }
 
 function skip(p: Plugin, why: unknown) {
@@ -407,6 +496,24 @@ function rekey(node: Node, prefix: string, seen: Set<string>): Node {
     attrs,
     children: (node.children ?? []).map((c) => rekey(c, prefix, seen)),
   }
+}
+
+/**
+ * A plugin's nodes made safe under `prefix`, keys unique within `seen`.
+ * Throws on anything a node may not hold; the caller isolates it.
+ */
+export function safeNodes(
+  out: unknown,
+  prefix: string,
+  seen: Set<string>,
+): Node[] {
+  if (!Array.isArray(out)) throw new Error('draw must return an array')
+  return out.map((c) => rekey(c, prefix, seen))
+}
+
+/** Reports a failing plugin once and lets the render go on without it. */
+export function skipPlugin(p: Plugin, why: unknown) {
+  skip(p, why)
 }
 
 /**

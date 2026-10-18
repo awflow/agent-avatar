@@ -10,18 +10,21 @@
  */
 
 import { ACTIVITIES, type Activity, activityLoop, blend } from './activity'
+import { type CharacterCtx, characterPart, drawCharacter } from './character'
 import { FX_KINDS, FX_POOL, FX_POOL_SMALL, type FxKind, fxShapes } from './fx'
 import { clamp, depth, RAD, seat, smooth } from './geom'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import { type Attrs, type Node, n, prune } from './node'
 import {
   accessoryOf,
+  bodyGeom,
+  characterOf,
   drawPlugin,
   fxOf,
   fxPluginShapes,
-  geomOf,
   propOf,
 } from './plugins'
+import type { Reaction } from './reactions'
 import {
   ACCESSORY_INK,
   type Channel,
@@ -100,6 +103,12 @@ export type Pose = Channels & {
    * their own spring. Absent by default; a slot left out reads `wob`.
    */
   swing?: Partial<Record<SwingSlot, number>>
+  /** Breathing, -1..1 on the rig's breath clock. Absent on a static frame. */
+  breath?: number
+  /** The reaction playing on a live rig, if any. Absent on a static frame. */
+  reaction?: Reaction | null
+  /** 0..1 progress of that reaction. */
+  reactionP?: number
 }
 
 export type DrawOptions = {
@@ -139,6 +148,8 @@ export type Drawable = Axes & {
   key?: string
   /** The held prop, by name; never hashed. */
   prop?: string
+  /** A registered character plugin, drawn in place of the body. */
+  character?: string
 }
 
 /* The frame: viewBox -30 -30 400 400, the floor on its bottom edge. */
@@ -192,7 +203,7 @@ export function thingGaze(face: FaceGeom, x: number, alt: number): Gaze {
  * locks the gaze.
  */
 export function restPose(
-  who: Pick<Axes, 'face'> & { key?: string },
+  who: Pick<Axes, 'face'> & { key?: string; character?: string },
   expression: Expression,
   gaze?: Gaze,
   activity: Activity = 'idle',
@@ -225,7 +236,7 @@ export function restPose(
   const g =
     (lock ? undefined : gaze) ??
     (expression === 'curious' && !lock
-      ? thingGaze(geomOf(who.face), 0, s.alt)
+      ? thingGaze(bodyGeom(who), 0, s.alt)
       : null)
   if (g) [pose.gx, pose.gy] = g
   return pose
@@ -469,7 +480,9 @@ function skinOf(
 }
 
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
-  const sh: FaceGeom = geomOf(who.face)
+  // a character draws the whole body and places by its own anchors
+  const char = characterOf(who.character)
+  const sh: FaceGeom = bodyGeom(who)
   const T = o.theme ?? THEMES.soft
   const slot: Ink = o.ink ?? T.colors[who.color]
   const { body: fill, deep } = slot
@@ -641,14 +654,49 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           r: sh.body.circle[2],
           fill,
         })
-  const skin = skinOf(
-    tier === 0 ? { ...who, motif: 'plain' } : who,
-    sh,
-    slot,
-    T,
-    id,
-    defs,
-  )
+  const skin = char
+    ? { under: [], over: [] }
+    : skinOf(
+        tier === 0 ? { ...who, motif: 'plain' } : who,
+        sh,
+        slot,
+        T,
+        id,
+        defs,
+      )
+
+  // What wardrobe and characters draw from. Built on first use, so a plain
+  // avatar at tier 0 never builds it.
+  let built: WearCtx | undefined
+  const ctxOf = (): WearCtx =>
+    (built ??= {
+      sh,
+      who,
+      pose,
+      t: pose.t + loopPhase(who.key),
+      theme: T,
+      ink: slot,
+      g,
+      stroke: st,
+      id,
+      size: o.size,
+    })
+  let charBuilt: CharacterCtx | undefined
+  const charCtx = (): CharacterCtx =>
+    (charBuilt ??= {
+      ...ctxOf(),
+      activity: pose.activity,
+      expression: pose.expression,
+      tier,
+      line: inkC,
+      breath: pose.breath ?? 0,
+      swing: pose.swing?.character ?? pose.wob,
+      lag: pose.lag,
+      reaction: pose.reaction ?? null,
+      reactionP: pose.reactionP ?? 0,
+    })
+  const charLayers = char ? drawCharacter(char, charCtx()) : null
+  if (charLayers) defs.push(...charLayers.defs)
 
   // eyes
   const eyeS = g('eyeS')
@@ -680,6 +728,29 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       // a wink closes the right eye over whatever lid it already shows
       if (i === 1) lid = Math.max(lid, clamp(winkR, 0, 1))
       lid = lid + (1 - lid) * blink
+      if (char?.eye) {
+        const eye = char.eye
+        const state = {
+          index: i as 0 | 1,
+          side: side as -1 | 1,
+          rx,
+          ry,
+          lid,
+          lower,
+          tilt: side * tilt,
+          pupil,
+          shine,
+          gx,
+          gy,
+          happy: smooth(0.22, 0.36, lower) * (1 - smooth(0.2, 0.3, lid)),
+        }
+        return n(
+          'g',
+          kk,
+          { transform: `translate(${f2(ex + side * spread)} ${ey})` },
+          [characterPart(char, kk, () => eye(charCtx(), state))],
+        )
+      }
       defs.push(
         n('clipPath', `${kk}.clip`, { id: `${id}-e${i}` }, [
           n('ellipse', `${kk}.clip.shape`, {
@@ -963,6 +1034,20 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     }
     const transform = `translate(${f2(bx)} ${f2(by + hi)}) rotate(${f2(side * btilt)})`
     const key = `brow${i}`
+    if (char?.brow) {
+      const brow = char.brow
+      const state = {
+        index: i as 0 | 1,
+        side: side as -1 | 1,
+        hw,
+        arch: c,
+        weight: bw,
+        tilt: side * btilt,
+      }
+      return n('g', key, { transform }, [
+        characterPart(char, key, () => brow(charCtx(), state)),
+      ])
+    }
     if (wedge) {
       const dm = ((tl + tr) / 2) * 0.75
       return n('path', key, {
@@ -1006,7 +1091,22 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const open = who.mouth === 'line'
   const mouthT = `translate(${f2(m.x + g('mx'))} ${f2(m.y + g('my'))}) rotate(${f2(g('mk'))})`
   const mouths: Node[] = []
-  if (who.mouth === 'cat') {
+  if (char?.mouth) {
+    const mouth = char.mouth
+    const state = {
+      w: mw,
+      top: mt,
+      bottom: mb,
+      d: m.d,
+      open: clamp((mb - mt) / (2 * m.d), 0, 1),
+      voice: pose.voice,
+    }
+    mouths.push(
+      n('g', 'mouth', { transform: mouthT }, [
+        characterPart(char, 'mouth', () => mouth(charCtx(), state)),
+      ]),
+    )
+  } else if (who.mouth === 'cat') {
     // two small bows meeting in the middle; the lips' middle sets how they
     // curl, and a gap between the lips drops a little mouth under them
     const k = clamp(mid * 0.7, -m.d, m.d)
@@ -1160,7 +1260,9 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       'stroke-linejoin': 'round',
     })
   }
-  const trait = shape ? [n('g', 'trait', { transform: traitT }, [shape])] : []
+  // a character wears its own crest, if any: no trait over it
+  const trait =
+    shape && !char ? [n('g', 'trait', { transform: traitT }, [shape])] : []
 
   // Wardrobe lives on the same body transform as the face. Glasses grow
   // around the eye sockets, never around the pupils, so gaze stays free.
@@ -1178,22 +1280,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // the LOD gate drops the wardrobe below tier 1, so nothing is drawn there
   const dressed = tier >= 1
   // everything past Peek's own items: one drawing per slot from the
-  // registry, painted after that slot's Peek item. The context is built on
-  // first use, so tier 0 never builds it.
-  let built: WearCtx | undefined
-  const ctxOf = (): WearCtx =>
-    (built ??= {
-      sh,
-      who,
-      pose,
-      t: pose.t + loopPhase(who.key),
-      theme: T,
-      ink: slot,
-      g,
-      stroke: st,
-      id,
-      size: o.size,
-    })
+  // registry, painted after that slot's Peek item (ctxOf, above)
   const wearOf = (kind: WearSlot, name: string): Node[] => {
     if (!dressed) return []
     if (Object.hasOwn(WEAR[kind], name)) return WEAR[kind][name]!.draw(ctxOf())
@@ -1435,12 +1522,30 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
           transform: off(-0.55, 0.45),
           filter: riso ? `url(#${id}-pA)` : undefined,
         },
-        [
-          ...skin.under,
-          bodyNode,
-          ...skin.over,
-          ...(tier >= 2 ? [...cheeks, ...trait] : []),
-        ],
+        charLayers
+          ? [
+              charLayers.back,
+              // the geometry's plain silhouette stands in for a body that
+              // failed to draw; a live tree keeps it, hidden, either way
+              ...(charLayers.ok
+                ? o.live
+                  ? [
+                      {
+                        ...bodyNode,
+                        attrs: { ...bodyNode.attrs, opacity: '0' },
+                      },
+                    ]
+                  : []
+                : [bodyNode]),
+              charLayers.body,
+              ...(tier >= 2 ? cheeks : []),
+            ]
+          : [
+              ...skin.under,
+              bodyNode,
+              ...skin.over,
+              ...(tier >= 2 ? [...cheeks, ...trait] : []),
+            ],
       ),
       n(
         'g',
@@ -1454,7 +1559,10 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
         [
           ...eyes,
           ...(tier >= 2 ? brows : []),
-          ...(tier >= 1 ? [...mouths, ...decor, ...wardrobe] : []),
+          ...(tier >= 1 ? [...mouths, ...decor] : []),
+          // a character's front layer: over the face, under the wardrobe
+          ...(charLayers ? [charLayers.front] : []),
+          ...(tier >= 1 ? wardrobe : []),
         ],
       ),
     ],

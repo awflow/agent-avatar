@@ -23,7 +23,13 @@ export { el } from './node'
 export type { SwingSpec } from './physics'
 export type {
   AccessoryPlugin,
+  BrowState,
+  CharacterCtx,
+  CharacterLayers,
+  CharacterPlugin,
+  EyeState,
   FxPlugin,
+  MouthState,
   Plugin,
   PropPlugin,
   ShapePlugin,
@@ -31,6 +37,7 @@ export type {
 } from './plugins'
 export {
   defineAccessory,
+  defineCharacter,
   defineFx,
   defineProp,
   defineShape,

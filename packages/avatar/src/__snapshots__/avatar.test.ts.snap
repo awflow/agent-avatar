@@ -24,6 +24,7 @@ exports[`adapter subpath the main entry stays frozen 1`] = `
   "crownTop",
   "deepOf",
   "defineAccessory",
+  "defineCharacter",
   "defineFx",
   "defineProp",
   "defineShape",

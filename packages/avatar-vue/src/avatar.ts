@@ -112,6 +112,7 @@ const props = {
   face: opt<P['face']>(),
   decor: opt<P['decor']>(),
   prop: opt<P['prop']>(),
+  character: opt<P['character']>(),
   title: opt<P['title']>(),
   riso: opt<P['riso']>(),
   lod: opt<P['lod']>(),

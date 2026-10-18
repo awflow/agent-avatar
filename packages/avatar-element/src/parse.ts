@@ -27,6 +27,7 @@ const STRINGS = [
   'neckwear',
   'face',
   'prop',
+  'character',
   'reaction',
 ]
 

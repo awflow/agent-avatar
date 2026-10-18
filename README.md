@@ -133,8 +133,9 @@ cheeks, trait and motif. Any of them can be overridden one at a time. Pin a
 drawing with `version` (`1` is byte-identical to Peek 1.2.0, `2` is the
 default); a released version never changes the face of an existing name.
 
-Plugins add shapes, accessories, props, FX and themes (`defineShape`,
-`defineAccessory`, `defineProp`, `defineFx`, `defineTheme`).
+Plugins add shapes, accessories, props, FX, themes and whole characters
+(`defineShape`, `defineAccessory`, `defineProp`, `defineFx`, `defineTheme`,
+`defineCharacter`).
 `@awflow/avatar/ai` gives a model a schema and a prompt to describe a look in
 words; `@awflow/avatar/compat` reads saved AWFlow looks.
 

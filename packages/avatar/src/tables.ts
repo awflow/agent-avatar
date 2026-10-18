@@ -696,7 +696,9 @@ export const GROUPS = {
   brows: ['browY', 'browTilt', 'browArch', 'browW', 'browAsym'],
   mouth: ['mw', 'mt', 'mb', 'mx', 'my', 'mk'],
   body: ['alt', 'rot', 'x', 'sx', 'sy'],
-  extra: ['blush', 'hair', 'dim', 'thing'],
+  // focus is appended: 1 while the agent is heads down (thinking,
+  // working). Built-in faces ignore it; characters read it
+  extra: ['blush', 'hair', 'dim', 'thing', 'focus'],
 } as const
 export type Group = keyof typeof GROUPS
 export type Channel = (typeof GROUPS)[Group][number]
@@ -734,6 +736,7 @@ const BASE: Channels = {
   hair: 0,
   dim: 0,
   thing: 0,
+  focus: 0,
 }
 
 const S = (o: Partial<Channels>): Readonly<Channels> => ({ ...BASE, ...o })

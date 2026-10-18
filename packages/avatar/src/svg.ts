@@ -18,7 +18,7 @@ import {
 } from './draw'
 import { FX_KINDS } from './fx'
 import { type Axes, fnv1a, type Identity, identify, LISTS } from './identity'
-import { accessoryOf, fxOf, propOf, shapeOf } from './plugins'
+import { accessoryOf, characterOf, fxOf, propOf, shapeOf } from './plugins'
 import { dev, note } from './registry'
 import {
   COLORS,
@@ -53,6 +53,11 @@ export type AvatarOptions = Omit<
   decor?: Or<Decor>
   /** 'peek@1' | 'peek@2': pins the version; an explicit version wins. */
   style?: 'peek@1' | 'peek@2'
+  /**
+   * A registered character plugin by name: a whole mascot drawn on the rig
+   * in place of the body. Unknown names draw the avatar as without one.
+   */
+  character?: string
   /** A hand-held prop, built-in or a registered prop plugin; never hashed. */
   prop?: Or<Prop>
   /** A palette slot, or any #rgb / #rrggbb hex for a custom body ink. */
@@ -131,6 +136,8 @@ function unknownOverrides(o: AvatarOptions, v1: boolean) {
         )
       case 'fx':
         return !!fxOf(v) || (FX_KINDS as readonly unknown[]).includes(v)
+      case 'character':
+        return !!characterOf(v)
       default:
         return (
           !!accessoryOf(axis as WearSlot, v) ||
@@ -147,6 +154,7 @@ function unknownOverrides(o: AvatarOptions, v1: boolean) {
     ['prop', o.prop],
     ['theme', o.theme],
     ['fx', o.fx],
+    ['character', o.character],
   ]
   for (const [axis, v] of asked)
     if (typeof v === 'string' && !known(axis, v))
@@ -166,7 +174,11 @@ export function settle(
   name: string,
   o: AvatarOptions,
   live = false,
-): { who: Identity & { prop: Prop }; pose: Pose; opts: DrawOptions } {
+): {
+  who: Identity & { prop: Prop; character?: string }
+  pose: Pose
+  opts: DrawOptions
+} {
   const version =
     o.version ??
     (typeof o.style === 'string' && Object.hasOwn(STYLES, o.style)
@@ -185,14 +197,17 @@ export function settle(
     typeof o.color === 'string' && Object.hasOwn(COLORS, o.color)
       ? (o.color as Color)
       : undefined
-  const who: Identity & { prop: Prop } = {
+  // a character pins the parts it names; an explicit option still wins
+  const char = characterOf(o.character)
+  const pin = char?.parts ?? {}
+  const who: Identity & { prop: Prop; character?: string } = {
     ...base,
     face: shapeOr(o.shape ?? (v1 ? o.face : undefined), base.face),
     color: named ?? base.color,
-    eyes: take('eyes', o.eyes, base.eyes),
-    brows: take('brows', o.brows, base.brows),
-    mouth: take('mouth', o.mouth, base.mouth),
-    cheeks: take('cheeks', o.cheeks, base.cheeks),
+    eyes: take('eyes', o.eyes, pin.eyes ?? base.eyes),
+    brows: take('brows', o.brows, pin.brows ?? base.brows),
+    mouth: take('mouth', o.mouth, pin.mouth ?? base.mouth),
+    cheeks: take('cheeks', o.cheeks, pin.cheeks ?? base.cheeks),
     trait: take('trait', o.trait, base.trait),
     eyewear: wearOr('eyewear', o.eyewear, base.eyewear),
     headwear: wearOr('headwear', o.headwear, base.headwear),
@@ -206,6 +221,8 @@ export function settle(
       (PROPS as readonly unknown[]).includes(o.prop) || propOf(o.prop)
         ? (o.prop as Prop)
         : 'none',
+    // only when one is drawn: without one, every existing id holds
+    ...(char ? { character: char.name } : {}),
   }
   const pose = restPose(
     who,
@@ -267,6 +284,8 @@ export function settle(
   if (pose.voice === -1) delete hp.voice
   if (pose.winkR === 0) delete hp.winkR
   if (!pose.swing) delete hp.swing
+  // focus follows from the activity, already hashed: never on its own
+  delete hp.focus
   const id =
     o.id ??
     `${who.version >= 2 ? 'awf' : 'peek'}-${fnv1a(JSON.stringify([hashed, hp, { ...look, ...extra }])).toString(36)}`

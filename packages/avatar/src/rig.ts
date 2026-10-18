@@ -35,7 +35,7 @@ import {
 } from './draw'
 import { mulberry32, seed } from './identity'
 import { type Swing, type SwingSpec, stepSwing } from './physics'
-import { geomOf } from './plugins'
+import { bodyGeom } from './plugins'
 import { REACTIONS, type Reaction, reactionOf } from './reactions'
 import { type AvatarOptions, serialize, settle } from './svg'
 import {
@@ -354,6 +354,8 @@ export class Rig {
   private pulseAt = -1
   // the voice level of the last step, -1 when the built-in flap runs
   private voice = -1
+  // the breath clock's phase, -1..1, of the last step
+  private breath = 0
   private random: () => number
   private rand: (a: number, b: number) => number
 
@@ -381,7 +383,7 @@ export class Rig {
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
     this.lookThing =
       this.state === 'curious' && !ACTIVITIES[this.activity].lockGaze
-    this.lag.y = -start.alt * frameOf(geomOf(who.face)).R
+    this.lag.y = -start.alt * frameOf(bodyGeom(who)).R
   }
 
   /**
@@ -409,7 +411,7 @@ export class Rig {
     if (!reduced) {
       // pick up from the static frame snap() left: the trait sits still
       this.handOff()
-      this.lag = { y: -this.val.alt * frameOf(geomOf(this.who.face)).R, v: 0 }
+      this.lag = { y: -this.val.alt * frameOf(bodyGeom(this.who)).R, v: 0 }
       return
     }
     this.snap()
@@ -417,7 +419,7 @@ export class Rig {
 
   /** The eye centre now, in frame coordinates, for others to look at. */
   eye(): [x: number, y: number] {
-    const { baseY, eyeY, R } = frameOf(geomOf(this.who.face))
+    const { baseY, eyeY, R } = frameOf(bodyGeom(this.who))
     return [170 + this.val.x, eyeY + baseY - this.val.alt * R]
   }
 
@@ -596,6 +598,7 @@ export class Rig {
     this.fxKind = null
     this.fxP = 0
     this.voice = -1
+    this.breath = 0
     this.swing = { angle: 0, vel: 0 }
     for (const [slot] of this.specs) this.swings[slot] = { angle: 0, vel: 0 }
     this.motion = null
@@ -617,7 +620,7 @@ export class Rig {
     const t = this.clock
     const age = t - this.enteredAt
     const st = this.state
-    const face = geomOf(this.who.face)
+    const face = bodyGeom(this.who)
     const rand = this.rand
     while (this.queue.length && this.queue[0]!.at <= t) {
       const q = this.queue.shift()!
@@ -684,7 +687,8 @@ export class Rig {
             ? 2.6
             : 2.1
     const ba = st === 'sleepy' ? 0.018 : st === 'attentive' ? 0.004 : 0.007
-    out.sy += ba * Math.sin(t * br)
+    this.breath = Math.sin(t * br)
+    out.sy += ba * this.breath
     out.alt += (st === 'sleepy' ? 0.03 : 0.008) * Math.sin(t * br + 1.1)
     if (st === 'happy') out.rot += 1.4 * Math.sin(t * 1.7)
     if (st === 'angry') {
@@ -846,7 +850,7 @@ export class Rig {
 
   /** The pose now, drawn on the shared slot angles; draw it at once. */
   private current(): Pose {
-    const R = frameOf(geomOf(this.who.face)).R
+    const R = frameOf(bodyGeom(this.who)).R
     const pose = {
       blink: this.blinkV,
       expression: this.state,
@@ -857,6 +861,15 @@ export class Rig {
       fx: this.fxKind,
       fxP: this.fxP,
       voice: this.reduced ? -1 : this.voice,
+      breath: this.reduced ? 0 : this.breath,
+      reaction: this.reaction?.name ?? null,
+      reactionP: this.reaction
+        ? clamp(
+            (this.clock - this.reaction.t0) / REACTIONS[this.reaction.name].dur,
+            0,
+            1,
+          )
+        : 0,
     } as Pose
     for (const c of CHANNELS) pose[c] = this.val[c] + this.out[c]
     if (this.specs.length) {

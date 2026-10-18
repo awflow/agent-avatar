@@ -13,7 +13,7 @@
 import type { Drawable, Pose } from '../draw'
 import type { Node } from '../node'
 import type { SwingSpec } from '../physics'
-import { accessoryOf } from '../plugins'
+import { accessoryOf, characterOf } from '../plugins'
 import type { Channel, FaceGeom } from '../tables'
 import type { Ink, Theme } from '../themes'
 import { DECOR } from './decor'
@@ -46,8 +46,11 @@ export type WearCtx = {
 export type WearDraw = (ctx: WearCtx) => Node[]
 export type Wearable = { draw: WearDraw; physics?: SwingSpec }
 
-/** The slots a spring can drive. The trait rides the body swing, `wob`. */
-export type SwingSlot = 'headwear' | 'neckwear' | 'trait'
+/**
+ * The slots a spring can drive. The trait rides the body swing, `wob`; a
+ * character that declares physics gets its own, `character`.
+ */
+export type SwingSlot = 'headwear' | 'neckwear' | 'trait' | 'character'
 export type WearSlot = 'headwear' | 'eyewear' | 'neckwear' | 'decor'
 
 export const WEAR: Record<WearSlot, Record<string, Wearable>> = {
@@ -65,7 +68,7 @@ const SPRUNG = ['headwear', 'neckwear'] as const
  * draws on the body swing (`pose.wob`), as Peek's sprout and the trait do.
  */
 export function springsOf(
-  who: Partial<Record<(typeof SPRUNG)[number], string>>,
+  who: Partial<Record<(typeof SPRUNG)[number] | 'character', string>>,
 ): Partial<Record<SwingSlot, SwingSpec>> {
   const out: Partial<Record<SwingSlot, SwingSpec>> = {}
   for (const slot of SPRUNG) {
@@ -77,5 +80,7 @@ export function springsOf(
         : accessoryOf(slot, name)?.physics
     if (spec) out[slot] = spec
   }
+  const own = characterOf(who.character)?.physics
+  if (own) out.character = own
   return out
 }
