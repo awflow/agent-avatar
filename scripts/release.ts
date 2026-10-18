@@ -17,6 +17,20 @@
  * - `sideEffects` present; every export, bin and types target in the tarball
  * - React's entry starts with 'use client'
  *
+ * Packages version independently (a patch may bump only some of them). Each
+ * `workspace:` dependency resolves to that dependency's own version.
+ *
+ * After the file checks, the tarballs are installed into one temporary
+ * consumer, which is typechecked (tsc, bundler and nodenext) and then run
+ * under plain Node by scripts/smoke/runtime.mjs: every entry imported, every
+ * declared value export present, every adapter's server render equal to
+ * toSvg, the element rendering under happy-dom and both bins working.
+ *
+ * Each `name@version` is looked up on npm. One already published is packed
+ * and checked like the rest (the consumer needs it), its tarball must be
+ * identical to the published one (a change needs a new version), and its
+ * publish command is printed as skipped.
+ *
  * It prints the `npm publish` commands at the end. It never runs them.
  */
 import { spawnSync } from 'node:child_process'
@@ -97,14 +111,13 @@ for (const dir of readdirSync(join(ROOT, 'packages'))) {
     manifests.set(m.name, m)
   }
 }
-const version = readJson(join(dirOf('avatar'), 'package.json'))
-  .version as string
 for (const p of ORDER) {
   const m = readJson(join(dirOf(p), 'package.json'))
-  if (m.version !== version)
-    fail(m.name, `version ${m.version}, expected ${version} like the core`)
+  if (!/^\d+\.\d+\.\d+$/.test(m.version))
+    fail(m.name, `version ${m.version} is not x.y.z`)
   if (m.private) fail(m.name, 'is private')
 }
+const versionOf = (name: string): string => manifests.get(name)?.version
 
 /** `workspace:^` and friends to the range a registry install understands. */
 function resolveWorkspace(name: string, spec: string, owner: string): string {
@@ -173,7 +186,9 @@ function check(p: Pkg, tarball: string): string[] {
     const text = readFileSync(join(pkg, 'package.json'), 'utf8')
 
     if (m.name !== name) fail(name, `packed name is ${m.name}`)
-    if (m.version !== version) fail(name, `packed version is ${m.version}`)
+    const version = versionOf(name)
+    if (m.version !== version)
+      fail(name, `packed version is ${m.version}, the manifest's ${version}`)
     if (text.includes('workspace:')) fail(name, 'a workspace: specifier ships')
     if (text.includes('awflow-src'))
       fail(name, 'the awflow-src condition ships')
@@ -190,8 +205,8 @@ function check(p: Pkg, tarball: string): string[] {
       for (const [dep, spec] of Object.entries(
         (m[field] ?? {}) as Record<string, string>,
       ))
-        if (dep.startsWith('@awflow/') && spec !== `^${version}`)
-          fail(name, `${field} ${dep}@${spec}, expected ^${version}`)
+        if (dep.startsWith('@awflow/') && spec !== `^${versionOf(dep)}`)
+          fail(name, `${field} ${dep}@${spec}, expected ^${versionOf(dep)}`)
 
     // the file list: package.json, README, LICENSE, dist and the extras
     const allowed = ['dist', ...(EXTRA[p] ?? [])]
@@ -262,16 +277,97 @@ function check(p: Pkg, tarball: string): string[] {
   }
 }
 
+/**
+ * Whether `name@version` is on npm. Found or E404 are answers; anything
+ * else (no network, a registry error) stops the script, since an unknown
+ * answer could print a publish command for a version that already exists.
+ */
+function onNpm(name: string, version: string): boolean {
+  const r = spawnSync(
+    'npm',
+    ['view', `${name}@${version}`, 'version', '--json'],
+    { encoding: 'utf8' },
+  )
+  if (r.status === 0) return r.stdout.trim() !== ''
+  if (`${r.stdout}${r.stderr}`.includes('E404')) return false
+  process.stderr.write(r.stderr ?? '')
+  console.error(`release: cannot ask npm about ${name}@${version}`)
+  process.exit(1)
+}
+
+/** Extracts a tarball into a fresh directory and returns its package/. */
+function extract(tarball: string): string {
+  const box = mkdtempSync(join(tmpdir(), 'awflow-release-x-'))
+  run('tar', ['xzf', tarball, '-C', box], ROOT)
+  return join(box, 'package')
+}
+
+/**
+ * An already published version must not change: the packed tarball must be
+ * the published one, file for file and byte for byte. The one allowance is
+ * an `@awflow/*` dependency range, which follows the dependency's current
+ * version in the repo: the published range must still accept it.
+ */
+function samePublished(name: string, version: string, tarball: string) {
+  const dl = mkdtempSync(join(tmpdir(), 'awflow-release-npm-'))
+  const dirs: string[] = []
+  try {
+    const out = run(
+      'npm',
+      ['pack', `${name}@${version}`, '--json', '--pack-destination', dl],
+      dl,
+    )
+    const theirs = extract(join(dl, JSON.parse(out)[0].filename as string))
+    const ours = extract(tarball)
+    dirs.push(theirs, ours)
+    const a = listFiles(theirs).sort()
+    const b = listFiles(ours).sort()
+    for (const f of a)
+      if (!b.includes(f)) fail(name, `${f} is published, no longer packed`)
+    for (const f of b)
+      if (!a.includes(f)) fail(name, `${f} is packed, not in the published`)
+    for (const f of b.filter((x) => a.includes(x) && x !== 'package.json'))
+      if (!readFileSync(join(theirs, f)).equals(readFileSync(join(ours, f))))
+        fail(name, `${f} differs from the published ${version}`)
+    const pub = readJson(join(theirs, 'package.json'))
+    const mine = readJson(join(ours, 'package.json'))
+    for (const field of DEP_FIELDS)
+      for (const [dep, spec] of Object.entries(
+        (pub[field] ?? {}) as Record<string, string>,
+      )) {
+        if (!dep.startsWith('@awflow/') || !mine[field]?.[dep]) continue
+        if (!Bun.semver.satisfies(versionOf(dep), spec))
+          fail(name, `published ${dep}@${spec} rejects ${versionOf(dep)}`)
+        mine[field][dep] = spec
+      }
+    if (JSON.stringify(pub) !== JSON.stringify(mine))
+      fail(name, `package.json differs from the published ${version}`)
+  } finally {
+    rmSync(dl, { recursive: true, force: true })
+    for (const d of dirs)
+      rmSync(join(d, '..'), { recursive: true, force: true })
+  }
+}
+
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 const stage = mkdtempSync(join(tmpdir(), 'awflow-release-stage-'))
-const packed: { name: string; file: string; files: string[] }[] = []
+const packed: {
+  name: string
+  version: string
+  file: string
+  files: string[]
+  published: boolean
+}[] = []
 
 try {
   for (const p of ORDER) {
     const dir = dirOf(p)
     const m = readJson(join(dir, 'package.json'))
-    console.log(`\n== ${m.name}@${m.version}`)
+    const published = onNpm(m.name, m.version)
+    console.log(
+      `\n== ${m.name}@${m.version}${published ? ' (already on npm)' : ''}`,
+    )
     run('bun', ['run', 'build'], dir)
 
     // the staged copy: the package without node_modules, its manifest
@@ -292,7 +388,8 @@ try {
     )
     const file = join(OUT, JSON.parse(out)[0].filename as string)
     const files = check(p, file)
-    packed.push({ name: m.name, file, files })
+    if (published) samePublished(m.name, m.version, file)
+    packed.push({ name: m.name, version: m.version, file, files, published })
     console.log(`${relative(ROOT, file)}: ${files.length} files`)
     for (const f of files) console.log(`  ${f}`)
   }
@@ -316,89 +413,163 @@ const ENTRIES = [
   '@awflow/avatar-solid',
   '@awflow/avatar-element',
 ]
-/** The frameworks' own packages, for their types. */
+/** The frameworks' own packages, for their types and the runtime smoke. */
 const CONSUMER_DEPS: Record<string, string> = {
   react: '^19.2.0',
+  'react-dom': '^19.2.0',
   '@types/react': '^19.2.0',
   vue: '^3.5.0',
   svelte: '^5.20.0',
   'solid-js': '^1.9.0',
+  '@happy-dom/global-registrator': '^21.0.3',
   typescript: readJson(join(ROOT, 'node_modules/typescript/package.json'))
     .version,
 }
 
-/**
- * Installs the tarballs into a fresh consumer and typechecks an import of
- * every public entry with library checking on (skipLibCheck false), strict,
- * under moduleResolution bundler and under nodenext, so a shipped .d.ts that
- * names an untyped module or an extensionless relative path fails here.
- */
-function consumerTypes() {
-  console.log('\n== consumer typecheck (bundler, nodenext)')
+/** A fresh consumer with every tarball installed, as an app would. */
+function consumer(): string {
   const dir = mkdtempSync(join(tmpdir(), 'awflow-release-consumer-'))
+  const tarballs = Object.fromEntries(
+    packed.map(({ name, file }) => [name, `file:${file}`]),
+  )
+  writeFileSync(
+    join(dir, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'awflow-release-consumer',
+        private: true,
+        type: 'module',
+        dependencies: tarballs,
+        devDependencies: CONSUMER_DEPS,
+        // the tarballs depend on each other by range: these, not npm's
+        overrides: tarballs,
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  run('bun', ['install', '--no-save'], dir)
+  writeFileSync(
+    join(dir, 'entries.ts'),
+    `${ENTRIES.map((e, i) => `import * as m${i} from '${e}'`).join('\n')}\n` +
+      `export const all = [${ENTRIES.map((_, i) => `m${i}`).join(', ')}]\n`,
+  )
+  return dir
+}
+
+/**
+ * Typechecks an import of every public entry with library checking on
+ * (skipLibCheck false), strict, under moduleResolution bundler and under
+ * nodenext, so a shipped .d.ts that names an untyped module or an
+ * extensionless relative path fails here.
+ */
+function consumerTypes(dir: string) {
+  console.log('\n== consumer typecheck (bundler, nodenext)')
+  const common = {
+    strict: true,
+    skipLibCheck: false,
+    noEmit: true,
+    target: 'ES2022',
+    lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+    types: [],
+  }
+  const modes = {
+    bundler: { module: 'ESNext', moduleResolution: 'bundler' },
+    nodenext: { module: 'NodeNext', moduleResolution: 'NodeNext' },
+  }
+  for (const [mode, o] of Object.entries(modes)) {
+    const config = `tsconfig.${mode}.json`
+    writeFileSync(
+      join(dir, config),
+      JSON.stringify({
+        compilerOptions: { ...common, ...o },
+        files: ['entries.ts'],
+      }),
+    )
+    const r = spawnSync(
+      join(dir, 'node_modules/.bin/tsc'),
+      ['-p', config, '--pretty', 'false'],
+      { cwd: dir, encoding: 'utf8' },
+    )
+    const lines = `${r.stdout}${r.stderr}`.split('\n').filter(Boolean)
+    if (r.status !== 0) {
+      for (const line of lines) fail(`tsc ${mode}`, line)
+      if (!lines.length) fail(`tsc ${mode}`, `exit ${r.status}`)
+    } else console.log(`tsc ${mode}: ${ENTRIES.length} entries, 0 errors`)
+  }
+}
+
+/**
+ * The value exports each entry's shipped declarations promise, read with
+ * the TypeScript API from the consumer's entries.ts (nodenext). The runtime
+ * smoke checks that every one of them exists.
+ */
+async function declaredExports(dir: string): Promise<Record<string, string[]>> {
+  const ts = (
+    await import(join(dir, 'node_modules/typescript/lib/typescript.js'))
+  ).default as typeof import('typescript')
+  const program = ts.createProgram([join(dir, 'entries.ts')], {
+    strict: true,
+    noEmit: true,
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'],
+    types: [],
+  })
+  const checker = program.getTypeChecker()
+  const source = program.getSourceFile(join(dir, 'entries.ts'))!
+  const out: Record<string, string[]> = {}
+  for (const st of source.statements) {
+    if (!ts.isImportDeclaration(st)) continue
+    const entry = (st.moduleSpecifier as import('typescript').StringLiteral)
+      .text
+    const mod = checker.getSymbolAtLocation(st.moduleSpecifier)
+    if (!mod) {
+      fail(entry, 'declarations do not resolve')
+      continue
+    }
+    out[entry] = checker
+      .getExportsOfModule(mod)
+      .filter((s) => {
+        const t =
+          s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : s
+        return t.flags & ts.SymbolFlags.Value
+      })
+      .map((s) => s.name)
+      .sort()
+    if (!out[entry]!.length) fail(entry, 'declares no value export')
+  }
+  return out
+}
+
+/** scripts/smoke/runtime.mjs inside the consumer, under plain Node. */
+async function runtimeSmoke(dir: string) {
+  console.log('\n== runtime smoke (plain node, from the tarballs)')
+  writeFileSync(
+    join(dir, 'exports.json'),
+    `${JSON.stringify(await declaredExports(dir), null, 2)}\n`,
+  )
+  for (const f of ['runtime.mjs', 'svelte-hooks.mjs'])
+    cpSync(join(ROOT, 'scripts/smoke', f), join(dir, f))
+  const r = spawnSync('node', ['runtime.mjs'], { cwd: dir, encoding: 'utf8' })
+  process.stdout.write(r.stdout ?? '')
+  if (r.status !== 0) {
+    const lines = `${r.stderr}`.split('\n').filter(Boolean)
+    for (const line of lines) fail('runtime smoke', line)
+    if (!lines.length) fail('runtime smoke', `exit ${r.status}`)
+  }
+}
+
+if (!errors.length) {
+  const dir = consumer()
   try {
-    const tarballs = Object.fromEntries(
-      packed.map(({ name, file }) => [name, `file:${file}`]),
-    )
-    writeFileSync(
-      join(dir, 'package.json'),
-      `${JSON.stringify(
-        {
-          name: 'awflow-release-consumer',
-          private: true,
-          type: 'module',
-          dependencies: tarballs,
-          devDependencies: CONSUMER_DEPS,
-          // the tarballs depend on each other at ^version, not yet on npm
-          overrides: tarballs,
-        },
-        null,
-        2,
-      )}\n`,
-    )
-    run('bun', ['install', '--no-save'], dir)
-    writeFileSync(
-      join(dir, 'entries.ts'),
-      `${ENTRIES.map((e, i) => `import * as m${i} from '${e}'`).join('\n')}\n` +
-        `export const all = [${ENTRIES.map((_, i) => `m${i}`).join(', ')}]\n`,
-    )
-    const common = {
-      strict: true,
-      skipLibCheck: false,
-      noEmit: true,
-      target: 'ES2022',
-      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      types: [],
-    }
-    const modes = {
-      bundler: { module: 'ESNext', moduleResolution: 'bundler' },
-      nodenext: { module: 'NodeNext', moduleResolution: 'NodeNext' },
-    }
-    for (const [mode, o] of Object.entries(modes)) {
-      const config = `tsconfig.${mode}.json`
-      writeFileSync(
-        join(dir, config),
-        JSON.stringify({
-          compilerOptions: { ...common, ...o },
-          files: ['entries.ts'],
-        }),
-      )
-      const r = spawnSync(
-        join(dir, 'node_modules/.bin/tsc'),
-        ['-p', config, '--pretty', 'false'],
-        { cwd: dir, encoding: 'utf8' },
-      )
-      const lines = `${r.stdout}${r.stderr}`.split('\n').filter(Boolean)
-      if (r.status !== 0) {
-        for (const line of lines) fail(`tsc ${mode}`, line)
-        if (!lines.length) fail(`tsc ${mode}`, `exit ${r.status}`)
-      } else console.log(`tsc ${mode}: ${ENTRIES.length} entries, 0 errors`)
-    }
+    consumerTypes(dir)
+    await runtimeSmoke(dir)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 }
-if (!errors.length) consumerTypes()
 
 if (errors.length) {
   console.error(`\nrelease: ${errors.length} violation(s)`)
@@ -407,8 +578,12 @@ if (errors.length) {
 }
 
 console.log(
-  `\nAll ${packed.length} tarballs pass the manifest and file checks.`,
+  `\nAll ${packed.length} tarballs pass the manifest, file, type and runtime checks.`,
 )
 console.log('Publish in this order (not run by this script):\n')
-for (const { file } of packed)
-  console.log(`npm publish ${relative(ROOT, file)} --access public`)
+for (const { name, version, file, published } of packed)
+  console.log(
+    published
+      ? `# skip ${name}@${version}: already on npm`
+      : `npm publish ${relative(ROOT, file)} --access public`,
+  )
