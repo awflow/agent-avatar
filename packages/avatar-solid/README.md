@@ -86,7 +86,7 @@ render, so the server frame and the first live paint agree.
 
 ## Docs
 
-Full documentation: <https://awflow.github.io/agent-avatar/>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## License
 

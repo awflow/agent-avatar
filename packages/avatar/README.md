@@ -12,7 +12,7 @@ import { toSvg } from '@awflow/avatar'
 const svg = toSvg('Linh', { size: 96, expression: 'happy' })
 ```
 
-Full documentation: <https://awflow.github.io/agent-avatar/>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## Framework components
 

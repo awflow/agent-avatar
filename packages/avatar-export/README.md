@@ -81,7 +81,7 @@ or a queue rather than on the request path.
 
 ## Docs
 
-Full documentation: <https://awflow.github.io/agent-avatar/>
+Full documentation: <https://github.com/awflow/agent-avatar#readme>
 
 ## Credits
 

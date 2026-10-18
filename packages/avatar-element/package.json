@@ -38,7 +38,7 @@
   "description": "Deterministic SVG avatars from a name, as <awf-avatar> custom elements.",
   "license": "MIT",
   "author": "AWFlow",
-  "homepage": "https://awflow.github.io/agent-avatar/",
+  "homepage": "https://github.com/awflow/agent-avatar",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/awflow/agent-avatar.git",
