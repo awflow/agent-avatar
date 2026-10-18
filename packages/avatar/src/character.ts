@@ -15,6 +15,7 @@
  */
 
 import type { Activity } from './activity'
+import { smooth } from './geom'
 import { el, type Node } from './node'
 import type { SwingSpec } from './physics'
 import { safeNodes, skipPlugin } from './plugins'
@@ -58,6 +59,26 @@ export type CharacterCtx = WearCtx & {
   /** The reaction playing, if any, and its progress 0..1. */
   reaction: Reaction | null
   reactionP: number
+  /** The activity before this one; the same one when nothing changed. */
+  from: Activity
+  /** Seconds since the activity changed; very large when it has settled. */
+  since: number
+}
+
+/**
+ * How much of an activity's own pose a character should show now, 0..1:
+ * it eases in over `seconds` when the activity begins and out as the next
+ * one takes over, so a pose tied to one activity never pops.
+ */
+export function activityWeight(
+  ctx: Pick<CharacterCtx, 'activity' | 'from' | 'since'>,
+  activity: Activity,
+  seconds = 0.45,
+): number {
+  const k = smooth(0, seconds, ctx.since)
+  return (
+    (ctx.activity === activity ? k : 0) + (ctx.from === activity ? 1 - k : 0)
+  )
 }
 
 /** One eye, as the rig has it this frame. Drawn about the eye's centre. */

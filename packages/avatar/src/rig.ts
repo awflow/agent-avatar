@@ -280,6 +280,9 @@ type Bump = {
 }
 type Queued = { at: number; set: Key[1]; spr?: Key[2] }
 
+// seconds after which an activity change has long settled
+const SETTLED = 1e6
+
 /**
  * The longest step the rig takes, in seconds: a stalled tab or a caller's
  * huge dt never flings the springs.
@@ -356,6 +359,10 @@ export class Rig {
   private voice = -1
   // the breath clock's phase, -1..1, of the last step
   private breath = 0
+  // the activity before this one, and when this one began: long ago until
+  // the first change, so a fresh rig reads as settled
+  private from: Activity
+  private activityAt = -SETTLED
   private random: () => number
   private rand: (a: number, b: number) => number
 
@@ -371,6 +378,7 @@ export class Rig {
     this.saccAt = this.rand(0.6, 1.8)
     this.state = state.expression
     this.activity = activityOf(state.activity)
+    this.from = this.activity
     this.reduced = state.reduced === true
     this.phase = loopPhase(who.key)
     this.specs = Object.entries(springsOf(who)) as [SwingSlot, SwingSpec][]
@@ -453,6 +461,8 @@ export class Rig {
   setActivity(activity: Activity) {
     const a = activityOf(activity)
     if (a === this.activity) return
+    this.from = this.activity
+    this.activityAt = this.clock
     this.activity = a
     // a pulse belongs to the speech it came with: none carries over
     this.pulseAt = -1
@@ -580,6 +590,7 @@ export class Rig {
 
   /** Straight to the rest pose of the current state, no motion. */
   private snap() {
+    this.activityAt = this.clock - SETTLED
     const rest = restPose(this.who, this.state, this.gaze(), this.activity)
     const base = this.target()
     for (const c of CHANNELS) {
@@ -862,6 +873,8 @@ export class Rig {
       fxP: this.fxP,
       voice: this.reduced ? -1 : this.voice,
       breath: this.reduced ? 0 : this.breath,
+      from: this.from,
+      since: Math.min(SETTLED, this.clock - this.activityAt),
       reaction: this.reaction?.name ?? null,
       reactionP: this.reaction
         ? clamp(

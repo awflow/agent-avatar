@@ -4,7 +4,7 @@ import { Live } from './animate'
 import type { CharacterCtx } from './character'
 import { draw, type Node } from './draw'
 import { mulberry32, seed } from './identity'
-import { defineCharacter as entryDefine } from './index'
+import { activityWeight, defineCharacter as entryDefine } from './index'
 import { el } from './node'
 import {
   type CharacterPlugin,
@@ -321,6 +321,39 @@ describe('the rig drives a character', () => {
     rig.setActivity('idle')
     for (let i = 0; i < 120; i++) rig.step(1 / 60)
     expect(rig.pose().focus).toBeCloseTo(0, 1)
+  })
+
+  test('activityWeight eases an activity pose in and the last one out', () => {
+    registerPlugins([blob()])
+    // a static frame, and a fresh rig, read as settled
+    tree('Aria', { character: 'blob', activity: 'waiting', size: 240 })
+    expect(activityWeight(seen!, 'waiting')).toBe(1)
+    expect(activityWeight(seen!, 'idle')).toBe(0)
+    const rig = rigFor('Aria', { character: 'blob', size: 240 })
+    rig.step(1 / 60)
+    rig.tree()
+    expect(activityWeight(seen!, 'idle')).toBe(1)
+    rig.setActivity('waiting')
+    const w: number[] = []
+    for (let i = 0; i < 40; i++) {
+      rig.step(1 / 60)
+      rig.tree()
+      w.push(activityWeight(seen!, 'waiting'))
+      // the two weights hand over, never both full, never a gap
+      expect(
+        activityWeight(seen!, 'waiting') + activityWeight(seen!, 'idle'),
+      ).toBeCloseTo(1, 6)
+    }
+    expect(seen!.from).toBe('idle')
+    expect(w[0]!).toBeLessThan(0.05)
+    expect(w[13]!).toBeGreaterThan(0.3)
+    expect(w[13]!).toBeLessThan(0.7)
+    expect(w.at(-1)!).toBe(1)
+    // reduced motion snaps: settled at once
+    rig.setReduced(true)
+    rig.setActivity('done')
+    rig.tree()
+    expect(activityWeight(seen!, 'done')).toBe(1)
   })
 
   test('a declared spring joins the wardrobe springs as `character`', () => {

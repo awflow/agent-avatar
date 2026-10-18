@@ -106,7 +106,10 @@ toSvg('Aria', { character: 'my-mascot', framing: 'full' })
   An eye gets its final lid (blink and wink included), lower lid, tilt,
   pupil, shine, gaze and a `happy` 0..1 for a smiling arc.
 - The `focus` channel springs to 1 while thinking or working and back to 0
-  otherwise: drive anything that should slide in and out with it.
+  otherwise: drive anything that should slide in and out with it. For a pose
+  tied to one activity, `activityWeight(ctx, 'waiting')` eases from 0 to 1
+  as it begins and back as the next one takes over (`ctx.from`,
+  `ctx.since`).
 - Return the same nodes every frame and per tier, never per pose: a live
   avatar keeps its node set. Round your numbers (two decimals) so every
   engine writes the same bytes.

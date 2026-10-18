@@ -1,5 +1,7 @@
 export type { Activity, ActivitySpec } from './activity'
 export { ACTIVITIES, activityLoop, blend } from './activity'
+/** For character authors: how much of an activity's own pose to show. */
+export { activityWeight } from './character'
 export type {
   DrawOptions,
   Frame,

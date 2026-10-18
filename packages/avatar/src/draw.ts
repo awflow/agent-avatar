@@ -109,6 +109,10 @@ export type Pose = Channels & {
   reaction?: Reaction | null
   /** 0..1 progress of that reaction. */
   reactionP?: number
+  /** The activity before this one on a live rig. Absent on a static frame. */
+  from?: Activity
+  /** Seconds since the activity last changed. Absent on a static frame. */
+  since?: number
 }
 
 export type DrawOptions = {
@@ -479,6 +483,9 @@ function skinOf(
   return { under, over }
 }
 
+// a static frame's activity has long settled
+const SETTLED = 1e6
+
 export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   // a character draws the whole body and places by its own anchors
   const char = characterOf(who.character)
@@ -694,6 +701,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       lag: pose.lag,
       reaction: pose.reaction ?? null,
       reactionP: pose.reactionP ?? 0,
+      from: pose.from ?? pose.activity,
+      since: pose.since ?? SETTLED,
     })
   const charLayers = char ? drawCharacter(char, charCtx()) : null
   if (charLayers) defs.push(...charLayers.defs)
