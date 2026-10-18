@@ -57,19 +57,6 @@
         "@awflow/avatar-export",
       ],
     },
-    "packages/avatar-aria": {
-      "name": "@awflow/avatar-aria",
-      "version": "0.0.0",
-      "dependencies": {
-        "@awflow/avatar": "workspace:^",
-      },
-      "devDependencies": {
-        "@awflow/avatar-export": "workspace:^",
-        "@awflow/typescript-config": "workspace:*",
-        "@types/bun": "latest",
-        "typescript": "^6.0.2",
-      },
-    },
     "packages/avatar-element": {
       "name": "@awflow/avatar-element",
       "version": "1.1.0",
@@ -197,7 +184,6 @@
 
     "@awflow/avatar": ["@awflow/avatar@workspace:packages/avatar"],
 
-    "@awflow/avatar-aria": ["@awflow/avatar-aria@workspace:packages/avatar-aria"],
 
     "@awflow/avatar-element": ["@awflow/avatar-element@workspace:packages/avatar-element"],
 
