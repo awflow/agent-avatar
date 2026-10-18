@@ -87,9 +87,21 @@ const options = (size: number): ResvgRenderOptions => ({
   font: { loadSystemFonts: false },
 })
 
-/** One SVG as a PNG, size pixels wide, encoded by resvg. */
-export function png(svg: string, size: number): Uint8Array {
+/**
+ * One SVG as a PNG, size pixels wide, encoded by resvg. With `maxPixels`,
+ * an SVG whose height would take the image past that area is refused before
+ * any pixel is drawn.
+ */
+export function png(svg: string, size: number, maxPixels?: number): Uint8Array {
   const resvg = new Resvg(svg, options(size))
+  // resvg reports the SVG's own size; the image is scaled to `size` wide
+  const area = resvg.width > 0 ? size * size * (resvg.height / resvg.width) : 0
+  if (maxPixels !== undefined && area > maxPixels) {
+    resvg.free()
+    throw new RangeError(
+      `svgToPng(): ${Math.round(area)} pixels is above maxSheet ${maxPixels}`,
+    )
+  }
   const image = resvg.render()
   try {
     return image.asPng()

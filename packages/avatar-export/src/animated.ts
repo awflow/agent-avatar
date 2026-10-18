@@ -3,13 +3,26 @@
  * an APNG (lossless, full alpha) or a GIF (one 256-colour palette for the
  * whole animation, 1-bit transparency).
  */
-import { type AvatarOptions, frames, type Reaction } from '@awflow/avatar'
+import {
+  type AvatarOptions,
+  type Cue,
+  frames,
+  type Reaction,
+} from '@awflow/avatar'
 import * as gifenc from 'gifenc'
 import { checkSize, checkTiming } from './limits'
 import { encodeApng } from './png'
 import { ensure, rgba } from './raster'
 
-export type AnimatedOptions = AvatarOptions & { reaction?: Reaction }
+/**
+ * What to animate: any avatar options (a registered `character` included),
+ * a `reaction` from the first frame, and a `timeline` of later cues: an
+ * activity, an expression or a reaction at a time in seconds.
+ */
+export type AnimatedOptions = AvatarOptions & {
+  reaction?: Reaction
+  timeline?: readonly Cue[]
+}
 export type AnimationSettings = {
   /** Side in pixels, 1 to LIMITS.maxSize. Default 256. */
   size?: number
