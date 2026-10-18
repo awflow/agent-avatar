@@ -99,6 +99,17 @@ Every decision taken during subagent-driven execution (2026-10-17/18), with what
 - ship 1.0.1 for changed packages only (element fix; core + export for CLI/engines/type minors); adapters stay 1.0.0 (they depend ^1.0.0): cost if wrong: versions diverge across packages
 - fix wave = element build + runtime tarball smoke in release.ts/CI, mount test isolation, root README, CLI minors (size cap, -h/-v, warn/reject ignored --fps/--seconds), engines node>=20, readonly string[], CI permissions + Node 20 job + size.ts, README npx wording, browser init docs + resvg MPL credit; ops items listed for owner
 
+## 2026-10-18 character plugins (1.1.0, spike/aria-character)
+
+- spin pivots toward the body centre past 20 degrees of turn, for every face: static poses lean less, so goldens and parity hold; live and exported spins change, noted in the changelog · cost if wrong: a spin GIF exported with 1.0.x differs from 1.1.0
+- character framing (`framing: 'full'`) fits the box swept by headroom, the highest hop (1.6 altitude units) and a whole spin (0.6 lift), centred, never above the built-in 0.8 scale: a character may draw smaller than a built-in face, never cut · cost if wrong: smaller mascots in full framing
+- speech waves read `geom.speech`, else (characters only) a spot beside the mouth below the eyes; built-in faces keep their spot byte for byte · cost if wrong: none
+- `focus` channel never joins the id (it follows from the activity) · cost if wrong: none
+- `tint` reaches characters only, and only from an explicit `color`; a hashed colour never recolours a mascot · cost if wrong: none
+- ai offers `character` only by registered names, and omits the axis when none is registered (an empty enum is not valid JSON Schema) · cost if wrong: none
+- versions: core, export, vue, element to 1.1.0; react, svelte, solid stay 1.0.0 (they forward every option and their files are unchanged) · cost if wrong: one more patch
+- Aria: Ember Mochi is the default mascot, Pip the Owlet an alternative look chosen in app settings (owner)
+
 ## Open follow-ups
 
 - Agentic-Flow-API: `memberSchema` / `templateMembers` should pass a bounded `avatar.look` so marketplace cards show the edited look.

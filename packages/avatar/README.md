@@ -79,6 +79,7 @@ const mascot = defineCharacter({
   geom, // a FaceGeom: the anchors wardrobe, props, overlays and rings use
   physics: { stiffness: 9, damping: 0.3, maxSwing: 18 }, // optional own spring
   lift: 0.6, // optional: hop lower than a built-in face (default 1)
+  headroom: 90, // optional: how far a crest or flame rises over the crown
   parts: { brows: 'none' }, // optional: pin built-in parts
   draw: (c) => ({
     defs: [], // gradients and clip paths, ids prefixed with c.id
@@ -101,8 +102,15 @@ toSvg('Aria', { character: 'my-mascot', framing: 'full' })
   plus `activity`, `expression`, `tier` (2, 1 below 44px, 0 below 24px),
   `line` (the theme's feature ink), `breath` (-1..1), `swing` (its own
   spring, else the body swing), `lag`, and the `reaction` playing with its
-  progress `reactionP`, and `unit` (frame units per altitude unit, after
-  `lift`).
+  progress `reactionP`, `unit` (frame units per altitude unit, after
+  `lift`), `pivot` (where the body turns this frame) and `tint` (the ink an
+  explicit `color` option asked for, else null).
+- Under `framing: 'full'` the frame keeps the character's `headroom`, its
+  highest hop and a whole spin in view: it may draw the body smaller than a
+  built-in face to do so, never cut it.
+- Speech waves sit at `geom.speech` when the geometry declares it, else
+  beside the mouth and below the eyes. A spin turns about the body's centre
+  (every face does, past 20 degrees of turn).
 - `eye`, `brow` and `mouth` are optional. Left out, the built-in part draws
   on the character's anchors (pinned by `parts`, else picked by the name).
   An eye gets its final lid (blink and wink included), lower lid, tilt,

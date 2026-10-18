@@ -4,6 +4,63 @@ The seven packages started at one version (1.0.0) and are versioned
 independently from there: a patch bumps only the packages whose published
 files change.
 
+## 1.1.0 (unreleased)
+
+`@awflow/avatar` 1.1.0, `@awflow/avatar-export` 1.1.0,
+`@awflow/avatar-vue` 1.1.0 and `@awflow/avatar-element` 1.1.0. The React,
+Svelte and Solid adapters are unchanged at 1.0.0 (they forward every option,
+`character` included) and accept core 1.1.0 through `^1.0.0`. No released
+name changes its static face: the version 2 golden and the `peek@1` parity
+tests hold byte for byte.
+
+### Character plugins (`@awflow/avatar`)
+
+- `defineCharacter({ name, geom, draw, eye?, brow?, mouth?, parts?,
+  physics?, lift?, headroom? })`, registered with `registerPlugins` and
+  picked with the new `character` option, never hashed. A character draws a
+  whole mascot in body space (behind the body, the body, in front of the
+  face) on the package's own rig: blinks, saccades, breathing, springs,
+  activities, reactions and overlays stay the package's. Its geometry is a
+  body shape's, so wardrobe, props, overlays and rings place on it. Plugin
+  rules hold: keyed nodes, the same nodes every frame, a failing body falls
+  back to the plain silhouette, server and client agree.
+- The character context carries the activity, the size tier, breath, its own
+  spring, the playing reaction and its progress, the activity it came from
+  and how long ago (`activityWeight()` eases activity poses in and out), the
+  altitude unit, the turning pivot and `tint`, the ink an explicit `color`
+  asked for.
+- A `focus` channel springs to 1 while thinking or working. It follows from
+  the activity, so it never joins the id.
+- `lift` scales how high a character hops; `headroom` tells `framing:
+  'full'` how far its tallest part rises, and the frame keeps that, the
+  highest hop and a whole spin in view.
+- `FaceGeom.speech` places the speech waves; a character without one gets
+  them beside its mouth, below its eyes. Built-in faces keep theirs.
+- `frames()` takes a `timeline` of cues: an activity, an expression or a
+  reaction at a time in seconds (at most `maxFrames` cues).
+- `@awflow/avatar/ai` offers `character` only by registered character names,
+  and only when at least one is registered; `parseLook` drops any other.
+
+### Motion
+
+- A spin turns about the body's centre instead of its feet, for every face:
+  past 20 degrees of turn the pivot slides toward the centre, so a whole spin
+  stays in place instead of swinging under the floor. Every static pose
+  leans less than that, so static output is unchanged; a live spin or an
+  exported spin GIF looks different.
+
+### Export (`@awflow/avatar-export`)
+
+- `toGif` and `toApng` take a `timeline` alongside `reaction`, and any
+  options, a registered `character` included.
+- `svgToPng(svg, { size })` rasterises any SVG string, such as one frame of
+  `frames()` or a sheet of them, within `maxSize` and `maxSheet`.
+
+### Adapters
+
+- `@awflow/avatar-vue` takes a `character` prop and `@awflow/avatar-element`
+  a `character` attribute.
+
 ## 1.0.1 (2026-10-18)
 
 `@awflow/avatar` 1.0.1, `@awflow/avatar-export` 1.0.1 and

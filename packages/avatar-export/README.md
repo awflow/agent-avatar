@@ -14,7 +14,14 @@ Every function returns a `Promise<Uint8Array>`. In Node, Bun and Deno the
 wasm loads on first use; nothing to set up.
 
 ```ts
-import { toApng, toGif, toPng, toSprite } from '@awflow/avatar-export'
+import {
+  svgToPng,
+  toApng,
+  toGif,
+  toPng,
+  toSprite,
+} from '@awflow/avatar-export'
+import { frames } from '@awflow/avatar'
 
 // a still PNG, 256 px square by default
 const png = await toPng('Linh', { expression: 'happy' }, { size: 512 })
@@ -24,6 +31,20 @@ const apng = await toApng('Linh', { reaction: 'hop' }, { fps: 30, seconds: 3 })
 
 // a GIF with one 256-colour palette, transparent where nothing is drawn
 const gif = await toGif('Linh', { frame: 'none', activity: 'done' })
+
+// a script: idle, then working from 1 s, a cheer at 3 s, idle again at 4 s
+const story = await toGif('Linh', {
+  timeline: [
+    { at: 1, activity: 'working' },
+    { at: 3, reaction: 'celebrate' },
+    { at: 4, activity: 'idle' },
+  ],
+}, { fps: 25, seconds: 5 })
+
+// any SVG string, such as one frame of frames(), at a given width
+const still = await svgToPng(frames('Linh', {}, { fps: 1, seconds: 1 })[0], {
+  size: 128,
+})
 
 // many avatars on one sheet: 3 columns of 64 px tiles, 4 px apart
 const sheet = await toSprite(['Ada', 'Linh', 'Sam'], {}, {
@@ -65,7 +86,8 @@ return at once.
 `LIMITS` is
 `{ maxFrames: 600, maxSize: 1024, maxSprite: 400, maxSheet: 16777216 }`, with
 `maxFrames` taken from the core's `FRAME_LIMITS` (1 to 120 fps, up to 60
-seconds). `maxSheet` caps a sprite sheet's area at 4096 by 4096 pixels. Frames are `round(fps * seconds)`, checked before anything is
+seconds). `maxSheet` caps a sprite sheet's area, and an `svgToPng` image's,
+at 4096 by 4096 pixels. A `timeline` holds at most `maxFrames` cues. Frames are `round(fps * seconds)`, checked before anything is
 drawn. A value out of range, or not a finite number, throws a `RangeError`
 that names the limit.
 

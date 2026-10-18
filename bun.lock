@@ -39,7 +39,7 @@
     },
     "packages/avatar": {
       "name": "@awflow/avatar",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "bin": {
         "awflow-avatar": "./bin/awflow-avatar.mjs",
       },
@@ -57,9 +57,22 @@
         "@awflow/avatar-export",
       ],
     },
+    "packages/avatar-aria": {
+      "name": "@awflow/avatar-aria",
+      "version": "0.0.0",
+      "dependencies": {
+        "@awflow/avatar": "workspace:^",
+      },
+      "devDependencies": {
+        "@awflow/avatar-export": "workspace:^",
+        "@awflow/typescript-config": "workspace:*",
+        "@types/bun": "latest",
+        "typescript": "^6.0.2",
+      },
+    },
     "packages/avatar-element": {
       "name": "@awflow/avatar-element",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -73,7 +86,7 @@
     },
     "packages/avatar-export": {
       "name": "@awflow/avatar-export",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "bin": {
         "awflow-avatar-export": "./bin/awflow-avatar-export.mjs",
       },
@@ -155,7 +168,7 @@
     },
     "packages/avatar-vue": {
       "name": "@awflow/avatar-vue",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "@awflow/avatar": "workspace:^",
       },
@@ -183,6 +196,8 @@
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@3.2.0", "", { "dependencies": { "@csstools/css-calc": "^2.1.3", "@csstools/css-color-parser": "^3.0.9", "@csstools/css-parser-algorithms": "^3.0.4", "@csstools/css-tokenizer": "^3.0.3", "lru-cache": "^10.4.3" } }, "sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw=="],
 
     "@awflow/avatar": ["@awflow/avatar@workspace:packages/avatar"],
+
+    "@awflow/avatar-aria": ["@awflow/avatar-aria@workspace:packages/avatar-aria"],
 
     "@awflow/avatar-element": ["@awflow/avatar-element@workspace:packages/avatar-element"],
 

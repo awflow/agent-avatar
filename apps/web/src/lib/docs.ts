@@ -879,6 +879,17 @@ const same = toSvg('Linh', { style: 'peek@1' }) // what Peek drew`,
     blurb: 'What shipped, and when.',
     task: 'Upgrade @awflow/avatar in this project to the latest version.',
     blocks: [
+      { h: '1.1.0' },
+      'A minor for `@awflow/avatar`, `@awflow/avatar-export`, `@awflow/avatar-vue` and `@awflow/avatar-element`; React, Svelte and Solid stay at 1.0.0. No static face changes.',
+      {
+        list: [
+          'Character plugins: `defineCharacter` draws a whole mascot on the rig, picked with the `character` option.',
+          'A `focus` channel, `activityWeight()`, `lift`, `headroom` and a speech anchor for characters.',
+          'A spin turns about the body centre, so it stays in the frame.',
+          '`frames()`, `toGif` and `toApng` take a `timeline` of cues; `svgToPng` rasterises any SVG string.',
+          'The AI helpers offer registered characters only.',
+        ],
+      },
       { h: '1.0.1' },
       'A patch for `@awflow/avatar`, `@awflow/avatar-export` and `@awflow/avatar-element`; the framework adapters stay at 1.0.0.',
       {
