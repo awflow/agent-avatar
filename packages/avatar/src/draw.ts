@@ -191,6 +191,16 @@ export function frameOf(face: FaceGeom) {
   return { baseY, eyeY, R: FLOOR - (eyeY + baseY) }
 }
 
+/**
+ * Where an avatar's body rests: its face's frame, with a character's `lift`
+ * scaling how far one altitude unit carries it.
+ */
+export function frameFor(who: { face: string; character?: string }) {
+  const f = frameOf(bodyGeom(who))
+  const lift = characterOf(who.character)?.lift
+  return lift === undefined ? f : { ...f, R: f.R * lift }
+}
+
 /** The eyes' aim at the thing in the corner, from wherever they are. */
 export function thingGaze(face: FaceGeom, x: number, alt: number): Gaze {
   const { baseY, eyeY, R } = frameOf(face)
@@ -513,7 +523,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const spread = P.spread
   const id = o.id
   const st = strokeFor(o.size)
-  const { baseY, R } = frameOf(sh)
+  const { baseY, R } = frameFor(who)
   const defs: Node[] = []
   const tier = tierOf(o.size, o.lod ?? false)
   const full = o.framing === 'full'
@@ -703,6 +713,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       reactionP: pose.reactionP ?? 0,
       from: pose.from ?? pose.activity,
       since: pose.since ?? SETTLED,
+      unit: R,
     })
   const charLayers = char ? drawCharacter(char, charCtx()) : null
   if (charLayers) defs.push(...charLayers.defs)

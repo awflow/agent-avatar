@@ -254,6 +254,11 @@ export function defineCharacter(
   for (const k of ['eye', 'brow', 'mouth'] as const)
     if (p[k] !== undefined) fn(p.name, k, p[k])
   if (p.physics !== undefined) checkPhysics(p.name, p.physics)
+  if (
+    p.lift !== undefined &&
+    !(typeof p.lift === 'number' && p.lift > 0 && p.lift <= 2)
+  )
+    throw new Error(`${at} lift must be a number above 0, at most 2`)
   if (p.parts !== undefined) {
     if (!p.parts || typeof p.parts !== 'object')
       throw new Error(`${at} parts must be an object`)

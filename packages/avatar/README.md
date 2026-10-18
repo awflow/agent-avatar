@@ -78,6 +78,7 @@ const mascot = defineCharacter({
   name: 'my-mascot',
   geom, // a FaceGeom: the anchors wardrobe, props, overlays and rings use
   physics: { stiffness: 9, damping: 0.3, maxSwing: 18 }, // optional own spring
+  lift: 0.6, // optional: hop lower than a built-in face (default 1)
   parts: { brows: 'none' }, // optional: pin built-in parts
   draw: (c) => ({
     defs: [], // gradients and clip paths, ids prefixed with c.id
@@ -100,7 +101,8 @@ toSvg('Aria', { character: 'my-mascot', framing: 'full' })
   plus `activity`, `expression`, `tier` (2, 1 below 44px, 0 below 24px),
   `line` (the theme's feature ink), `breath` (-1..1), `swing` (its own
   spring, else the body swing), `lag`, and the `reaction` playing with its
-  progress `reactionP`.
+  progress `reactionP`, and `unit` (frame units per altitude unit, after
+  `lift`).
 - `eye`, `brow` and `mouth` are optional. Left out, the built-in part draws
   on the character's anchors (pinned by `parts`, else picked by the name).
   An eye gets its final lid (blink and wink included), lower lid, tilt,

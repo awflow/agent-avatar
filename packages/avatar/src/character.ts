@@ -63,6 +63,8 @@ export type CharacterCtx = WearCtx & {
   from: Activity
   /** Seconds since the activity changed; very large when it has settled. */
   since: number
+  /** Frame units one altitude unit moves the body (`lift` applied). */
+  unit: number
 }
 
 /**
@@ -150,6 +152,12 @@ export type CharacterPlugin = {
   parts?: Partial<{ eyes: Eyes; brows: Brows; mouth: Mouth; cheeks: Cheeks }>
   /** Its own spring, read as `ctx.swing` (and `pose.swing.character`). */
   physics?: SwingSpec
+  /**
+   * How far one altitude unit carries this body, as a share of its eye
+   * height (default 1): below 1 a hop stays lower, so a tall body keeps its
+   * head in the frame. Above 0, at most 2.
+   */
+  lift?: number
   draw: (ctx: CharacterCtx) => CharacterLayers
   /** Draws one eye in place of the built-in one. */
   eye?: (ctx: CharacterCtx, eye: EyeState) => Node[]

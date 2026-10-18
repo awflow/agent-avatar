@@ -356,6 +356,40 @@ describe('the rig drives a character', () => {
     expect(activityWeight(seen!, 'done')).toBe(1)
   })
 
+  test('lift scales how far altitude carries the body, live and static', () => {
+    expect(() => blob({ lift: 0 })).toThrow(
+      'character "blob": lift must be a number above 0, at most 2',
+    )
+    expect(() => blob({ lift: Number.NaN })).toThrow('lift must be')
+    registerPlugins([blob(), blob({ name: 'low', lift: 0.5 })])
+    const lifted = (character: string) => {
+      const rig = rigFor('Aria', { character, size: 240 })
+      rig.react('hop')
+      for (let i = 0; i < 24; i++) rig.step(1 / 60)
+      const t = rig.tree()
+      const av = flat(t).find((x) => x.key === 'av')!
+      const ty = Number(/translate\(\S+ (\S+)\)/.exec(av.attrs.transform!)![1])
+      return { ty, unit: seen!.unit, alt: rig.pose().alt }
+    }
+    const full = lifted('blob')
+    const half = lifted('low')
+    expect(half.unit).toBeCloseTo(full.unit / 2, 6)
+    // the same pose, half the height above the rest line
+    expect(half.alt).toBeCloseTo(full.alt, 6)
+    const rest = settle('Aria', { character: 'blob' }, true)
+    const base = Number(
+      /translate\(\S+ (\S+)\)/.exec(
+        flat(draw(rest.who, rest.pose, rest.opts)).find((x) => x.key === 'av')!
+          .attrs.transform!,
+      )![1],
+    )
+    expect(base - half.ty).toBeCloseTo((base - full.ty) / 2, 1)
+    // the static rest pose is unchanged by lift
+    expect(toSvg('Aria', { character: 'low' })).toContain(
+      `translate(0 ${base})`,
+    )
+  })
+
   test('a declared spring joins the wardrobe springs as `character`', () => {
     registerPlugins([blob()])
     expect(springsOf({ character: 'blob' }).character).toEqual({

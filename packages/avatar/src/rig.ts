@@ -22,7 +22,7 @@ import {
   type Drawable,
   type DrawOptions,
   draw,
-  frameOf,
+  frameFor,
   type Gaze,
   loopPhase,
   type Node,
@@ -391,7 +391,7 @@ export class Rig {
     for (const c of CHANNELS) this.spr[c] = DEF_SPR[GROUP_OF[c]]
     this.lookThing =
       this.state === 'curious' && !ACTIVITIES[this.activity].lockGaze
-    this.lag.y = -start.alt * frameOf(bodyGeom(who)).R
+    this.lag.y = -start.alt * frameFor(who).R
   }
 
   /**
@@ -419,7 +419,7 @@ export class Rig {
     if (!reduced) {
       // pick up from the static frame snap() left: the trait sits still
       this.handOff()
-      this.lag = { y: -this.val.alt * frameOf(bodyGeom(this.who)).R, v: 0 }
+      this.lag = { y: -this.val.alt * frameFor(this.who).R, v: 0 }
       return
     }
     this.snap()
@@ -427,7 +427,7 @@ export class Rig {
 
   /** The eye centre now, in frame coordinates, for others to look at. */
   eye(): [x: number, y: number] {
-    const { baseY, eyeY, R } = frameOf(bodyGeom(this.who))
+    const { baseY, eyeY, R } = frameFor(this.who)
     return [170 + this.val.x, eyeY + baseY - this.val.alt * R]
   }
 
@@ -826,7 +826,7 @@ export class Rig {
     }
 
     // the trait lags behind the body a little
-    const R = frameOf(face).R
+    const R = frameFor(this.who).R
     const avY = -(this.val.alt + out.alt) * R
     const lom = 10
     const lze = 0.32
@@ -861,7 +861,7 @@ export class Rig {
 
   /** The pose now, drawn on the shared slot angles; draw it at once. */
   private current(): Pose {
-    const R = frameOf(bodyGeom(this.who)).R
+    const R = frameFor(this.who).R
     const pose = {
       blink: this.blinkV,
       expression: this.state,
