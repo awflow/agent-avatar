@@ -53,7 +53,7 @@ tests hold byte for byte.
 
 - `toGif` and `toApng` take a `timeline` alongside `reaction`, and any
   options, a registered `character` included.
-- `svgToPng(svg, { size })` rasterises any SVG string, such as one frame of
+- `svgToPng(svg, { size })` rasterises an avatar SVG string (one starting with `<svg`), such as one frame of
   `frames()` or a sheet of them, within `maxSize` and `maxSheet`.
 
 ### Adapters

@@ -931,8 +931,8 @@ export const FRAME_LIMITS = Object.freeze({
 
 /**
  * One scripted change in an animation: at `at` seconds the avatar takes on
- * an activity or an expression, or plays a reaction. Unknown names are
- * ignored, as the live handle ignores them.
+ * an activity or an expression, or plays a reaction. As on the live handle,
+ * an unknown activity is idle; an unknown expression or reaction is ignored.
  */
 export type Cue = {
   at: number
