@@ -6,6 +6,10 @@
  *
  * The `rays` motif is reserved for Aria and left out of the enum, so a model
  * never picks it and parseLook drops it.
+ *
+ * A character is offered only by the names registered as character plugins
+ * at call time, and only when there is at least one: a model can never name
+ * a character this page cannot draw.
  */
 import { LISTS } from './identity'
 import { plugins } from './plugins'
@@ -70,6 +74,10 @@ const accessory = (slot: string) =>
     p.kind === 'accessory' && p.slot === slot ? [p.name] : [],
   )
 
+const characters = () =>
+  plugins().flatMap((p) => (p.kind === 'character' ? [p.name] : []))
+const WHAT_CHARACTER = 'a whole mascot drawn in place of the body'
+
 function values(): Record<Axis, string[]> {
   const kind = (k: string) =>
     plugins().flatMap((p) =>
@@ -98,6 +106,13 @@ export function lookSchema(): object {
   const properties: Record<string, unknown> = {}
   for (const a of ENUM_AXES)
     properties[a] = { type: 'string', enum: v[a], description: WHAT[a] }
+  const chars = characters()
+  if (chars.length)
+    properties.character = {
+      type: 'string',
+      enum: chars,
+      description: WHAT_CHARACTER,
+    }
   properties.color = {
     description: WHAT.color,
     anyOf: [
@@ -123,6 +138,9 @@ export function lookPrompt(opts: { locale?: string } = {}): string {
     ...ENUM_AXES.map((a) => `- ${a}: ${WHAT[a]}. One of: ${v[a].join(', ')}.`),
     `- color: ${WHAT.color}. Slots: ${LISTS.color.join(', ')}.`,
   ]
+  const chars = characters()
+  if (chars.length)
+    lines.push(`- character: ${WHAT_CHARACTER}. One of: ${chars.join(', ')}.`)
   if (opts.locale)
     lines.push(
       '',
@@ -141,6 +159,10 @@ export function parseLook(input: unknown): AvatarOptions {
     if (!Object.hasOwn(src, a)) continue
     const x = src[a]
     if (typeof x === 'string' && v[a].includes(x)) out[a] = x
+  }
+  if (Object.hasOwn(src, 'character')) {
+    const x = src.character
+    if (typeof x === 'string' && characters().includes(x)) out.character = x
   }
   if (Object.hasOwn(src, 'color')) {
     const c = src.color

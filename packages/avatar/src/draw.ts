@@ -11,7 +11,14 @@
 
 import { ACTIVITIES, type Activity, activityLoop, blend } from './activity'
 import { type CharacterCtx, characterPart, drawCharacter } from './character'
-import { FX_KINDS, FX_POOL, FX_POOL_SMALL, type FxKind, fxShapes } from './fx'
+import {
+  FX_KINDS,
+  FX_POOL,
+  FX_POOL_SMALL,
+  type FxAnchor,
+  type FxKind,
+  fxShapes,
+} from './fx'
 import { clamp, depth, RAD, seat, smooth } from './geom'
 import { type Axes, fnv1a, mulberry32, type Persona } from './identity'
 import { type Attrs, type Node, n, prune } from './node'
@@ -125,6 +132,8 @@ export type DrawOptions = {
   theme?: Theme
   /** A resolved body ink (a hex colour) that replaces the theme's slot. */
   ink?: Ink
+  /** The ink an explicit `color` asked a character for (see CharacterCtx). */
+  tint?: Ink
   /** false clips the frame to a circle. */
   square: boolean
   /** Riso plates, misregistration and grain. Fades out below 120px. */
@@ -168,6 +177,11 @@ const strokeFor = (px: number) =>
 // hat room above the crown when the whole body is framed
 const HEADROOM = 48
 const FULL_SCALE = 0.8
+// the highest any reaction or activity lifts a body (the hop), and the
+// lift a spin carries, in altitude units: a character's full framing keeps
+// both in view
+export const MAX_ALT = 1.6
+export const SPIN_ALT = 0.6
 const RING_R = 190
 const RING_W = 12
 
@@ -655,7 +669,16 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const B = sh.bottom
   const ty = baseY - alt * R
   const sc = (v: number) => Math.round(v * 100000) / 100000
-  const bodyTransform = `translate(${f2(x)} ${f2(ty)}) rotate(${f2(rot)} 170 ${B}) translate(170 ${B}) scale(${sc(sx)} ${sc(sy)}) translate(-170 ${-B})`
+  const crownTop = Math.min(...sh.crown.poly.map(([, y]) => y)) - sh.crown.r
+  // A lean turns about the feet. Past 20 degrees the pivot slides toward
+  // the body's centre, so a whole spin turns in place instead of swinging
+  // the body round its feet and under the floor. Every static pose leans
+  // less than that, so its bytes hold.
+  const turn = Math.abs((((rot % 360) + 540) % 360) - 180)
+  const pivotK = smooth(20, 90, turn)
+  const pivotY = B + ((crownTop + B) / 2 - B) * pivotK
+  const pivot = pivotK > 0 ? f2(pivotY) : B
+  const bodyTransform = `translate(${f2(x)} ${f2(ty)}) rotate(${f2(rot)} 170 ${pivot}) translate(170 ${B}) scale(${sc(sx)} ${sc(sy)}) translate(-170 ${-B})`
   const bodyNode =
     'd' in sh.body
       ? n('path', 'body', {
@@ -714,6 +737,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       from: pose.from ?? pose.activity,
       since: pose.since ?? SETTLED,
       unit: R,
+      pivot: [170, pivotY],
+      tint: o.tint ?? null,
     })
   const charLayers = char ? drawCharacter(char, charCtx()) : null
   if (charLayers) defs.push(...charLayers.defs)
@@ -1609,7 +1634,18 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     side: sh.side,
     eyeY: sh.eyes[0][1] + ty,
     mouthY: sh.mouth.y + g('my') + ty,
-  }
+  } as FxAnchor
+  // the speech waves: where the geometry says, else (for a character, whose
+  // mouth may sit close under the eyes) beside the mouth below the eyes
+  const speech: readonly [number, number] | undefined =
+    sh.speech ??
+    (char
+      ? [
+          sh.mouth.x + sh.mouth.w + 22,
+          Math.max(sh.mouth.y, sh.eyes[1][1] + sh.ry + 26),
+        ]
+      : undefined)
+  if (speech) anchor.speech = [speech[0] + x, speech[1] + g('my') + ty]
   const shapes = kinds
     .filter((kind) => tier >= 2 || kind === 'ask')
     .flatMap((kind) => {
@@ -1660,9 +1696,22 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
   const builtInProp = !!who.prop && Object.hasOwn(HELD_PROPS, who.prop)
   const propPlug = builtInProp ? undefined : propOf(who.prop)
   const holds = builtInProp || propPlug !== undefined
-  const fullC = (top - HEADROOM + sh.bottom) / 2 + baseY
+  let fullC = (top - HEADROOM + sh.bottom) / 2 + baseY
+  let fullScale = FULL_SCALE
+  if (char) {
+    // a character keeps its tallest part, its highest hop and a whole spin
+    // (about the centre, below) in the frame: the box all three sweep is
+    // centred and scaled to fit, never above the built-in scale
+    const head = char.headroom ?? HEADROOM
+    const cy = (top + sh.bottom) / 2
+    const reach = Math.max(cy - (top - head), sh.bottom - cy, sh.side)
+    const hi = Math.min(top - head - MAX_ALT * R, cy - reach - SPIN_ALT * R)
+    const lo = Math.max(sh.bottom, cy + reach)
+    fullScale = sc(Math.min(FULL_SCALE, 376 / (lo - hi)))
+    fullC = (hi + lo) / 2 + baseY
+  }
   const toLocal = (v: number, c: number) =>
-    full ? (v - 170) / FULL_SCALE + c : v
+    full ? (v - 170) / fullScale + c : v
   // the visible frame (the viewBox), or the round frame's clip circle,
   // mapped into the prop's space
   const bound: PropBound = {
@@ -1674,8 +1723,8 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
     ],
     circle: o.square
       ? undefined
-      : [170, full ? fullC : 170, full ? 200 / FULL_SCALE : 200],
-    scale: full ? FULL_SCALE : 1,
+      : [170, full ? fullC : 170, full ? 200 / fullScale : 200],
+    scale: full ? fullScale : 1,
   }
   const propNodes = () => {
     const propCtx = {
@@ -1717,7 +1766,7 @@ export function draw(who: Drawable, pose: Pose, o: DrawOptions): Node {
       'g',
       'framing',
       {
-        transform: `translate(170 170) scale(${FULL_SCALE}) translate(-170 ${f2(-c)})`,
+        transform: `translate(170 170) scale(${fullScale}) translate(-170 ${f2(-c)})`,
       },
       body,
     )

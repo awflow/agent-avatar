@@ -249,6 +249,10 @@ export function settle(
   const lodDefault = who.version >= 2
   const lod = typeof o.lod === 'boolean' ? o.lod : lodDefault
   const fx = typeof o.fx === 'string' || o.fx === false ? o.fx : true
+  // a character keeps its own palette unless a colour is asked for
+  const tint = char
+    ? (ink ?? (named ? theme.colors[named] : undefined))
+    : undefined
   // theme name, custom ink, framing, a non-default lod and fx join the id
   // only when set: existing ids hold. The ring never does: it is state, has
   // no defs to collide, and must change without a new id.
@@ -258,6 +262,7 @@ export function settle(
     ...(framing === 'full' ? { framing } : {}),
     ...(lod !== lodDefault ? { lod } : {}),
     ...(fx !== true ? { fx } : {}),
+    ...(tint ? { tint } : {}),
   }
   // Keep the byte-level peek@1 contract: an axis at its v1 default (no
   // wardrobe, plain motif, no decor) stays out of the hashed identity.
@@ -302,6 +307,7 @@ export function settle(
       ring,
       lod,
       fx,
+      ...(tint ? { tint } : {}),
     },
   }
 }

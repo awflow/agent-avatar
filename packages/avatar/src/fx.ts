@@ -62,6 +62,12 @@ export type FxAnchor = {
   side: number
   eyeY: number
   mouthY: number
+  /**
+   * Where the speech waves sit, when the body declares it (a geometry's
+   * `speech`, or a character's own spot beside the mouth). Absent, they sit
+   * off the mouth as they always have.
+   */
+  speech?: readonly [x: number, y: number]
 }
 
 const S = 3.4
@@ -248,7 +254,9 @@ export function fxShapes(
             stroke: ink,
             strokeWidth: 1.1 * S,
             opacity: 0.5 + 0.5 * Math.sin(9 * t - 1.2 * i),
-            transform: at(hx + 6 * S, a.mouthY),
+            transform: a.speech
+              ? at(a.speech[0], a.speech[1])
+              : at(hx + 6 * S, a.mouthY),
           }),
         )
       break

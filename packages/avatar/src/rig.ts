@@ -41,6 +41,7 @@ import { type AvatarOptions, serialize, settle } from './svg'
 import {
   type Channel,
   type Channels,
+  EXPRESSIONS,
   type Expression,
   GROUPS,
   type Group,
@@ -929,15 +930,29 @@ export const FRAME_LIMITS = Object.freeze({
 })
 
 /**
+ * One scripted change in an animation: at `at` seconds the avatar takes on
+ * an activity or an expression, or plays a reaction. Unknown names are
+ * ignored, as the live handle ignores them.
+ */
+export type Cue = {
+  at: number
+  activity?: Activity
+  expression?: Expression
+  reaction?: Reaction
+}
+
+/**
  * An animation, rendered: `seconds` of the live avatar at `fps`, one
  * serialized SVG per frame. The first is the server frame of the live tree;
  * each next one is 1/fps later. Deterministic: the rig's randomness comes
- * from a source seeded by the name. A `reaction` starts at the first frame.
- * Bounded by FRAME_LIMITS: a RangeError names the limit a request exceeds.
+ * from a source seeded by the name. A `reaction` starts at the first frame;
+ * a `timeline` scripts later changes (cues apply in time order, at most
+ * `maxFrames` of them). Bounded by FRAME_LIMITS: a RangeError names the
+ * limit a request exceeds.
  */
 export function frames(
   name: string,
-  opts: AvatarOptions & { reaction?: Reaction },
+  opts: AvatarOptions & { reaction?: Reaction; timeline?: readonly Cue[] },
   o: { fps: number; seconds: number },
 ): string[] {
   const { fps, seconds } = o
@@ -957,8 +972,20 @@ export function frames(
     throw new RangeError(
       `frames(): ${n} frames is above maxFrames ${L.maxFrames}`,
     )
-  // the reaction is played on the rig, never drawn from
-  const { reaction, ...look } = opts
+  // the reaction and the timeline are played on the rig, never drawn from
+  const { reaction, timeline = [], ...look } = opts
+  if (!Array.isArray(timeline))
+    throw new TypeError('frames(): timeline must be an array of cues')
+  if (timeline.length > L.maxFrames)
+    throw new RangeError(
+      `frames(): ${timeline.length} cues is above maxFrames ${L.maxFrames}`,
+    )
+  for (const c of timeline)
+    if (!c || typeof c !== 'object' || !(c.at >= 0) || !Number.isFinite(c.at))
+      throw new RangeError(
+        'frames(): every cue needs a finite `at` of 0 or more',
+      )
+  const cues = [...timeline].sort((a, b) => a.at - b.at)
   const { who, opts: draws } = settle(name, look, true)
   const rig = new Rig(
     who,
@@ -971,12 +998,29 @@ export function frames(
     mulberry32(seed(name, 'rig')),
   )
   if (reaction) rig.react(reaction)
+  let next = 0
+  const cue = (t: number) => {
+    for (; next < cues.length && cues[next]!.at <= t + 1e-9; next++) {
+      const c = cues[next]!
+      if (c.expression && Object.hasOwn(EXPRESSIONS, c.expression))
+        rig.setExpression(c.expression)
+      if (c.activity !== undefined) rig.setActivity(c.activity)
+      if (c.reaction) rig.react(c.reaction)
+    }
+  }
+  cue(0)
   // substeps of at most 1/60 s keep the springs as smooth as a live page
   const dt = 1 / fps
   const sub = Math.max(1, Math.ceil(dt * 60 - 1e-9))
   const out: string[] = []
+  let t = 0
   for (let i = 0; i < n; i++) {
-    if (i) for (let k = 0; k < sub; k++) rig.step(dt / sub)
+    if (i)
+      for (let k = 0; k < sub; k++) {
+        rig.step(dt / sub)
+        t += dt / sub
+        cue(t)
+      }
     out.push(serialize(rig.tree()))
   }
   return out

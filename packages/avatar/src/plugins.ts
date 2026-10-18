@@ -202,6 +202,8 @@ function checkGeom(at: string, geom: unknown): FaceGeom {
     throw new Error(`${at} crown.poly must be [x, y] points`)
   if (Array.isArray(b.circle) && b.circle.length !== 3)
     throw new Error(`${at} body.circle must be [cx, cy, r]`)
+  if (g.speech !== undefined && !pair(g.speech))
+    throw new Error(`${at} speech must be an [x, y] point`)
   for (const k of SHAPE_NUMBERS) {
     const v = k
       .split('.')
@@ -259,6 +261,11 @@ export function defineCharacter(
     !(typeof p.lift === 'number' && p.lift > 0 && p.lift <= 2)
   )
     throw new Error(`${at} lift must be a number above 0, at most 2`)
+  if (
+    p.headroom !== undefined &&
+    !(typeof p.headroom === 'number' && p.headroom >= 0 && p.headroom <= 400)
+  )
+    throw new Error(`${at} headroom must be a number from 0 to 400`)
   if (p.parts !== undefined) {
     if (!p.parts || typeof p.parts !== 'object')
       throw new Error(`${at} parts must be an object`)

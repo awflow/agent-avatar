@@ -65,6 +65,13 @@ export type CharacterCtx = WearCtx & {
   since: number
   /** Frame units one altitude unit moves the body (`lift` applied). */
   unit: number
+  /** Where the body turns this frame (`rot`), in body coordinates. */
+  pivot: readonly [x: number, y: number]
+  /**
+   * The body ink an explicit `color` option asked for, else null: a
+   * character keeps its own palette unless told otherwise.
+   */
+  tint: { body: string; deep: string } | null
 }
 
 /**
@@ -158,6 +165,12 @@ export type CharacterPlugin = {
    * head in the frame. Above 0, at most 2.
    */
   lift?: number
+  /**
+   * Frame units above the crown its tallest part reaches at rest (a crest,
+   * a flame, ear tufts). Under `framing: 'full'` the frame keeps that, the
+   * highest hop and a whole spin in view. Default 48, a hat's room.
+   */
+  headroom?: number
   draw: (ctx: CharacterCtx) => CharacterLayers
   /** Draws one eye in place of the built-in one. */
   eye?: (ctx: CharacterCtx, eye: EyeState) => Node[]

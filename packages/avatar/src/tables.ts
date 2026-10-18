@@ -59,6 +59,11 @@ export type FaceGeom = {
   side: number
   /** The neckwear line. */
   neck: number
+  /**
+   * Where the speech waves overlay sits, beside the mouth and clear of the
+   * eyes. Optional: without it the waves keep their place off the mouth.
+   */
+  speech?: Pt
 }
 
 const FACES_V1 = {
