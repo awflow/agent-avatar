@@ -4,7 +4,7 @@ The seven packages started at one version (1.0.0) and are versioned
 independently from there: a patch bumps only the packages whose published
 files change.
 
-## 1.1.0 (unreleased)
+## 1.1.0 (2026-10-18)
 
 `@awflow/avatar` 1.1.0, `@awflow/avatar-export` 1.1.0,
 `@awflow/avatar-vue` 1.1.0 and `@awflow/avatar-element` 1.1.0. The React,
