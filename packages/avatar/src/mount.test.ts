@@ -57,6 +57,7 @@ function frames() {
 describe('mount', () => {
   test('non-animated: the bytes of toSvg', () => {
     motion.reduce = false
+    const before = liveCount().all
     const target = document.createElement('div')
     target.innerHTML = '<p>old</p>'
     const h = mount(target, { name: 'Ada', size: 128, expression: 'happy' })
@@ -64,7 +65,8 @@ describe('mount', () => {
       parsed(toSvg('Ada', { size: 128, expression: 'happy' })),
     )
     expect(target.firstElementChild as unknown).toBe(h.element)
-    expect(liveCount().all).toBe(0)
+    // a static mount binds no Live
+    expect(liveCount().all).toBe(before)
     h.destroy()
   })
 

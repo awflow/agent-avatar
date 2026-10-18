@@ -3,7 +3,7 @@
  * (each test drives step() itself), the IntersectionObserver is inert and
  * reduced motion is a switch.
  */
-import { afterAll, beforeAll } from 'bun:test'
+import { afterAll, afterEach, beforeAll } from 'bun:test'
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
 import { Live } from '../animate'
 import { draw } from '../draw'
@@ -15,8 +15,16 @@ const g = globalThis as any
 g.__motion ??= { reduce: false }
 export const motion: { reduce: boolean } = g.__motion
 
+/* every Live this helper binds, destroyed after each test so none leaks
+ * into the module-level registry another test file counts */
+const made = new Set<Live>()
+
 /** Registers the fake DOM for the calling test file. */
 export function fakeDom() {
+  afterEach(() => {
+    for (const live of made) live.destroy()
+    made.clear()
+  })
   beforeAll(() => {
     GlobalRegistrator.register()
     globalThis.requestAnimationFrame = () => 1
@@ -56,6 +64,7 @@ export function mount(name: string, o: AvatarOptions = {}, reduced = false) {
     o.gaze,
     o.activity,
   )
+  made.add(live)
   const count = () => svg.querySelectorAll('*').length
   return { live, svg, count, who, opts, tree, rig: inside(live) }
 }
