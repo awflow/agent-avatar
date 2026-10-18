@@ -5,14 +5,23 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check:
+    name: check (node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # the bins and the runtime smoke run under plain Node: engines >=20
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -39,5 +48,10 @@ jobs:
       - name: Test
         run: bun run test
 
-      - name: Pack and check the tarballs
+      - name: Core size is committed
+        run: |
+          bun scripts/size.ts
+          git diff --exit-code -- apps/web/src/generated/size.json
+
+      - name: Pack, check and smoke the tarballs
         run: bun scripts/release.ts
