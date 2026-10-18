@@ -8,6 +8,7 @@ import {
 import type { ReactNode } from 'react'
 import { Shell } from '@/components/chrome'
 import { SITE } from '@/lib/docs'
+import { asset } from '@/lib/site'
 import appCss from '../styles.css?url'
 
 const TITLE = '@awflow/avatar · Faces for your agents'
@@ -32,8 +33,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-      { rel: 'alternate', type: 'text/plain', href: '/llms.txt' },
+      { rel: 'icon', href: asset('/favicon.svg'), type: 'image/svg+xml' },
+      { rel: 'alternate', type: 'text/plain', href: asset('/llms.txt') },
     ],
   }),
   component: RootComponent,

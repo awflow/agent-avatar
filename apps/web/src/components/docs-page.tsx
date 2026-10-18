@@ -20,6 +20,7 @@ import {
   toMarkdown,
   toPrompt,
 } from '@/lib/docs'
+import { asset } from '@/lib/site'
 
 export const docsHead = (p: DocPage) => {
   const title = `${p.title} · @awflow/avatar`
@@ -89,7 +90,7 @@ function DocsNav() {
         <ul>
           {['/llms.txt', '/llms-full.txt'].map((href) => (
             <li key={href}>
-              <a href={href}>{href.slice(1)}</a>
+              <a href={asset(href)}>{href.slice(1)}</a>
             </li>
           ))}
         </ul>

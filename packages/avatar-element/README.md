@@ -49,7 +49,7 @@ Importing in Node (SSR, tests) is safe from 1.0.1 and defines nothing; the
 
 ## Docs
 
-Full documentation: <https://github.com/awflow/agent-avatar#readme>
+Full documentation: <https://awflow.github.io/agent-avatar/>
 
 ## License
 

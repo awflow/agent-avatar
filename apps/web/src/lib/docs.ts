@@ -21,8 +21,14 @@ import {
 } from '@awflow/avatar'
 import type { AvatarProps } from '@awflow/avatar-react'
 import { FRAMEWORKS, INSTALL, type Look, snippet } from './frameworks.ts'
+import { PAGES_BASE, PAGES_ORIGIN } from './site.ts'
 
-export const SITE = 'https://[docs domain]'
+/** Set by vite.config.ts from `SITE_ORIGIN` and `SITE_BASE`; see site.ts. */
+declare const __SITE__: string | undefined
+export const SITE =
+  typeof __SITE__ === 'string'
+    ? __SITE__
+    : `${PAGES_ORIGIN}${PAGES_BASE.replace(/\/$/, '')}`
 export const REPO = 'https://github.com/awflow/agent-avatar'
 export const PEEK = 'https://peek.doan-labs.com'
 

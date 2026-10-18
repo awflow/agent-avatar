@@ -14,6 +14,8 @@ storing, only its name.
 
 Built on [Peek](https://peek.doan-labs.com) by Doan Labs.
 
+Docs and playground: <https://awflow.github.io/agent-avatar/>
+
 ## Packages
 
 | Package | For | Install |
@@ -138,6 +140,7 @@ words; `@awflow/avatar/compat` reads saved AWFlow looks.
 
 ## Links
 
+- Docs and playground: <https://awflow.github.io/agent-avatar/>
 - Core and options: [packages/avatar](packages/avatar/README.md)
 - Adapters: [React](packages/avatar-react/README.md) ·
   [Svelte](packages/avatar-svelte/README.md) ·

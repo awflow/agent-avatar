@@ -7,7 +7,6 @@ dist-ssr
 .nitro
 .tanstack
 .output
-.wrangler
 .turbo
 scratch/
 .superpowers/

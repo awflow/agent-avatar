@@ -72,7 +72,7 @@
     "node": ">=20"
   },
   "author": "AWFlow",
-  "homepage": "https://github.com/awflow/agent-avatar",
+  "homepage": "https://awflow.github.io/agent-avatar/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/awflow/agent-avatar.git",

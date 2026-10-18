@@ -5,6 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "env": ["SITE_BASE", "SITE_ORIGIN"],
       "outputs": ["dist/**", ".output/**"]
     },
     "check-types": {
